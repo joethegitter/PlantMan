@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace Plants
 {
-
     class Plant
     {
         // Constructors
@@ -14,98 +13,63 @@ namespace Plants
         {
             // instead of assigning value to the private field _name,
             // we set the public property, which causes validation
-            this.Name = Name;
+            _name = Name;
 
-            // now we set default values for all fields/properties
+            // now we set default values for some fields/properties
             Initialize();
         }
 
-        // By default, compiler will create a public parameterless constructor.
-        // We don't want that, so we block that creation with our own.
+        // By default, compiler will create a public parameterless constructor
+        // behind our back. We don't want callers to use that constructor, so
+        // we throw an exception.
         public Plant()
         {
-            this.Name = "<ERROR! UNITITALIZED!>";
+            throw new InvalidOperationException("Use the other constructor.");
         }
 
+        // Public Properties
+        // ----------------------- //
 
+        // Use properties when you want to react to or control 
+        // the reading and writing of these values.
 
-        // A method for validating Enums
-        public static bool IsValidFloweringMonth(typeof(FloweringMonth) x)
-        {
-            // TODO: write this - find that method
-            return true;
-        }
-
-        // When parsing the CSV file, use these values to recognize meaning
-        public static class ValInCsv
-        {
-            public static string[] Unknown = { "?" };
-            public static string[] Yes = { "Y", "y", "Yes", "yes", "x" };
-            public static string[] No = { "N", "n", "No", "no", "<NullAsString>" };
-            public static string[] Unassigned = { "<NullAsString>" };
-        }
-
-        // Public fields - these elements can be read or written directly by the public
-
-        // Name is read only; it is set at creation in the constructor, and 
-        // our database will assume its value is unique
+        // Name
         public string Name
         {
+            // The Name Property is read only; it is set at creation in the constructor,
+            // because we require any Plant object to have a name. Later, when trying
+            // to add a Plant to our database, Name will be our "key" property which
+            // enforces uniqueness between records.
+
             get { return _name; }
-
-            internal set  // internal, so Name can only be set from within the object code itself
-            {
-                if (!String.IsNullOrEmpty(value) && !String.IsNullOrWhiteSpace(value))
-                {
-                    _name = value;
-                }
-                else
-                {
-                    throw new ArgumentException("Property cannot be set to null or empty or whitespace", "Name");
-                }
-            }
         }
 
-        // ScientificName
-        // We force a value here; for "under construction" records,
-        // parser should put a placeholder name in, like "Unassigned"
-        public string ScientificName
-        {
-            get { return _scientificName; }
+        // I am leaving ScientificName below as an example of how to convert public
+        // fields to properties. Eventually you really do want to enforce these;
+        // but for now I'll provide a ScientificName public field, which you can
+        // remove when you convert to property.
 
-            set
-            {
-                if (!String.IsNullOrEmpty(value) && !String.IsNullOrWhiteSpace(value))
-                {
-                    _scientificName = value;
-                }
-                else
-                {
-                    throw new ArgumentException("Property cannot be set to null or empty or whitespace", "ScientificName");
-                }
-            }
-        }
+        //// ScientificName
+        //public string ScientificName
+        //{
+        //    // We do not allow a blank value to be "set";
+        //    // to allow "under construction" records and protect ourselves,
+        //    // we will initalize this value in the constructor call to Initialize()
 
-        // URL
-        // We force a value here; for "under construction" records,
-        // parser should put a placeholder name in, like "Unassigned"
-        public string URL
-        {
-            get { return _URL; }
+        //    get { return _scientificName; }
 
-            set
-            {
-                if (!String.IsNullOrEmpty(value) && !String.IsNullOrWhiteSpace(value))
-                {
-                    _scientificName = value;
-                }
-                else
-                {
-                    throw new ArgumentException("Property cannot be set to null or empty or whitespace", "ScientificName");
-                }
-
-            }
-        }
+        //    set
+        //    {
+        //        if (!String.IsNullOrEmpty(value) && !String.IsNullOrWhiteSpace(value))
+        //        {
+        //            _scientificName = value;
+        //        }
+        //        else
+        //        {
+        //            throw new ArgumentException("Property cannot be set to null or empty or whitespace", "ScientificName");
+        //        }
+        //    }
+        //}
 
         // Type
         public PlantType Type
@@ -114,57 +78,28 @@ namespace Plants
 
             set
             {
-                PlantType x = PlantType.Bush;
-                if (IsValidEnum(x,value))
+                if (Enums.IsValidPlantType(value))
                 {
                     _type = value;
                 }
                 else
                 {
-                    throw new ArgumentException("Not a valid PlantType value.", "PlantType");
+                    System.Diagnostics.Debug.WriteLine("Type.setter(): Not a valid enum value: " + value.ToString());
+                    throw new ArgumentException("Not a valid enum value: " + value.ToString(), "PlantType");
                 }
             }
         }
 
-        // Height and Width
-        public decimal MinHeight
-        {
-            get { return _minHeight; }
-            set { _minHeight = value; }
-        }
-
-        public decimal MaxHeight
-        {
-            get { return _maxHeight; }
-            set { _maxHeight = value; }
-        }
-
-        public decimal MinWidth
-        {
-            get { return _minWidth; }
-            set { _minWidth = value; }
-        }
-
-        public decimal MaxWidth
-        {
-            get { return _maxWidth; }
-            set { _maxWidth = value; }
-        }
-
         // Flowering months
-        public IReadOnlyList<FloweringMonth> FloweringMonths
+        public List<FloweringMonth> FloweringMonths
         {
             get
             {
-                // We store the values which make up this property in a list. We
-                // don't want to hand that list to the caller, though, because then
-                // they will be able to edit the list without us knowing it. So we
-                // will instead hand them a ReadOnly reference to that list. When they
-                // want to change the contents of the list, they can get this property,
-                // create a new list, copy over each item (as they want), add or subtract
-                // items from that list, and then use the Set accessor to replace the 
-                // entire list that we have stored.
-                IReadOnlyList<FloweringMonth> k = _floweringMonths;
+                // Don't give them the actual list, give them a copy. We want to control
+                // modifications to the list, so we force them to give us a whole new list
+                // when they want to set this property. Alternative is to wrap list with
+                // our own Add/Remove/Clear methods.
+                List<FloweringMonth> k = _floweringMonths.ToList<FloweringMonth>();
                 return k;
             }
 
@@ -172,83 +107,332 @@ namespace Plants
             {
                 // Here the caller hands us an entire list.  We'll reject the list if
                 // it contains any non-valid FloweringMonthvalues.
-
-                JOE this is where we are
-                if (IsValidEnum(x, value))
+                if (value == null)
                 {
-                    _type = value;
+                    throw new ArgumentNullException("FloweringMonths", "Value cannot be null.");
+                }
+
+                // we don't allow an empty list. Could auto-assign "Unassigned", 
+                // but let's force caller to be explicit instead.
+                if (value.Count == 0)  
+                {
+                    throw new ArgumentException("Empty list not allowed. Use Unassigned or Unknown or Not Applicable", "FloweringMonths");
+                }
+
+                // If present, Unassigned, Unknown and Not Applicable must be the ONLY value in list.
+                if (value.Count > 1)
+                {
+                    if (value.Contains<FloweringMonth>(FloweringMonth.Unassigned) ||
+                            value.Contains<FloweringMonth>(FloweringMonth.Unassigned) ||
+                            value.Contains<FloweringMonth>(FloweringMonth.NotApplicable)
+                        )
+                    {
+                        throw new ArgumentException("List cannot contain Unassigned or Unknown or NotApplicable AND another value.");
+                    }
+                }
+
+                // All values in list must be valid
+                foreach (FloweringMonth v in value)
+                {
+                    if (!Enums.IsValidFloweringMonth(v))
+                    {
+                        throw new ArgumentException("Property not set. An item in list was not a valid FloweringMonth value: " + v.ToString());
+                    }
+                }
+
+                _floweringMonths = value;
+            }
+        }
+
+        // SunRequirement
+        public SunType SunRequirement
+        {
+            get { return _sunRequirement; }
+
+            set
+            {
+                if (Enums.IsValidSunType(value))
+                {
+                    _sunRequirement = value;
                 }
                 else
                 {
-                    throw new ArgumentException("Not a valid PlantType value.", "PlantType");
+                    System.Diagnostics.Debug.WriteLine("SunRequirement.setter(): Not a valid enum value: " + value.ToString());
+                    throw new ArgumentException("Not a valid enum value: " + value.ToString(), "SunType");
                 }
             }
         }
 
+        // WateringRequirement
+        public WateringType WateringRequirement
+        {
+            get { return _wateringRequirement; }
 
-        // Here are private fields, that hold values which can only be internally accessed
+            set
+            {
+                if (Enums.IsValidWateringType(value))
+                {
+                    _wateringRequirement = value;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("WateringRequirement.setter(): Not a valid enum value: " + value.ToString());
+                    throw new ArgumentException("Not a valid enum value: " + value.ToString(), "WateringRequirement");
+                }
+            }
+        }
+
+        // CNPS_Drainage
+        public CNPS_Drainage CNPS_Drainage
+        {
+            get { return _CNPS_Drainage; }
+
+            set
+            {
+                if (Enums.IsValidWateringType(value))
+                {
+                    _CNPS_Drainage = value;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("CNPS_Drainage.setter(): Not a valid enum value: " + value.ToString());
+                    throw new ArgumentException("Not a valid enum value: " + value.ToString(), "CNPS_Drainage");
+                }
+            }
+        }
+
+        // Attracts_Butterflies
+        public AttractorOf Attracts_Butterflies
+        {
+            get { return _attractsButterflies; }
+
+            set
+            {
+                if (Enums.IsValidAttractorOf(value))
+                {
+                    _attractsButterflies = value;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("Attracts_Butterflies.setter(): Not a valid enum value: " + value.ToString());
+                    throw new ArgumentException("Not a valid enum value: " + value.ToString(), "Attracts_Butterflies");
+                }
+            }
+        }
+
+        // Attracts_Birds
+        public AttractorOf Attracts_Birds
+        {
+            get { return _attractsBirds; }
+
+            set
+            {
+                if (Enums.IsValidAttractorOf(value))
+                {
+                    _attractsBirds = value;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("Attracts_Birds.setter(): Not a valid enum value: " + value.ToString());
+                    throw new ArgumentException("Not a valid enum value: " + value.ToString(), "Attracts_Birds");
+                }
+            }
+        }
+
+        // Attracts_Hummingbirds
+        public AttractorOf Attracts_Hummingbirds
+        {
+            get { return _attractsHummingbirds; }
+
+            set
+            {
+                if (Enums.IsValidAttractorOf(value))
+                {
+                    _attractsHummingbirds = value;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("Attracts_Hummingbirds.setter(): Not a valid enum value: " + value.ToString());
+                    throw new ArgumentException("Not a valid enum value: " + value.ToString(), "Attracts_Hummingbirds");
+                }
+            }
+        }
+
+        // NativeToCounty Stuff
+            // Do not add or remove NativeToCounty properties without editing
+            // the _countyName list. Do not edit the spelling of county names 
+            // without also editing the value passed by each NativeToCounty property.
+        private List<string> _countyNames = new List<string>()
+        { "Alameda", "ContraCosta", "Marin", "Napa", "SanFrancisco", "SanMateo", "SantaClara", "Solano", "Sonoma" };
+
+        private Dictionary<string, NativeToCounty> _countyDict =
+            new Dictionary<string, NativeToCounty>();
+
+        private void InitializeCountyDictionary()       // will be called in object Initialize()
+        {
+            foreach (string s in _countyNames)
+            {
+                _countyDict.Add(s, NativeToCounty.Unassigned);
+            }
+        }
+
+        public NativeToCounty NativeTo_Alameda
+        {
+            get { return _countyDict["Alameda"]; }
+
+            set { SetNativeToCounty("Alameda", value); }
+        }
+
+        public NativeToCounty NativeTo_Contra_Costa
+        {
+            get { return _countyDict["ContraCosta"]; }
+
+            set { SetNativeToCounty("ContraCosta", value); }
+        }
+
+        public NativeToCounty NativeTo_Marin
+        {
+            get { return _countyDict["Marin"]; }
+
+            set { SetNativeToCounty("Marin", value); }
+        }
+
+        public NativeToCounty NativeTo_Napa
+        {
+            get { return _countyDict["Napa"]; }
+
+            set { SetNativeToCounty("Napa", value); }
+        }
+
+        public NativeToCounty NativeTo_SanFrancisco
+        {
+            get { return _countyDict["SanFrancisco"]; }
+
+            set { SetNativeToCounty("SanFrancisco", value); }
+        }
+
+        public NativeToCounty NativeTo_SanMateo
+        {
+            get { return _countyDict["SanMateo"]; }
+
+            set { SetNativeToCounty("SanMateo", value); }
+        }
+
+        public NativeToCounty NativeTo_Santa_Clara
+        {
+            get { return _countyDict["SantaClara"]; }
+
+            set { SetNativeToCounty("SantaClara", value); }
+        }
+
+        public NativeToCounty NativeTo_Solano
+        {
+            get { return _countyDict["Solano"]; }
+
+            set { SetNativeToCounty("Solano", value); }
+        }
+
+        public NativeToCounty NativeTo_Sonoma
+        {
+            get { return _countyDict["Sonoma"]; }
+
+            set { SetNativeToCounty("Sonoma", value); }
+        }
+
+        private void SetNativeToCounty(string county, NativeToCounty value)
+        {
+            if (Enums.IsValidNativeToCounty(value))
+            {
+                _countyDict["v"] = value;
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("SetNativeToCounty(): Not a valid enum value: " + value.ToString());
+                throw new ArgumentException("Not a valid enum value: " + value.ToString(), "NativeToCounty");
+            }
+        }
+
+        // Public fields
+        // ---------------- //
+        // Public fields can be directly read or written by the public,
+        // with no validation or intervention on our part
+
+        // TODO: thes should be turned into properties, with enforcment. My opinion.
+        public string ScientificName;
+        public string URL;
+        public string Notes;
+        public string CNPS_Soil;
+        public string NotableVisual;
+
+        public decimal MinHeight;
+        public decimal MaxHeight;
+        public decimal MinWidth;
+        public decimal MaxWidth;
+        public decimal MinRainfallInches;
+        public decimal MaxRainfallInches;
+        public decimal MinWinterTempF;
+        public decimal MinSoilpH;
+        public decimal MaxSoilpH;
+        public bool DocumentedAsGoodInContainers;
+
+        // Here are private fields, that hold values which back
+        // the public properties.
         private string _name;
-        private string _URL;
-        private string _scientificName;
         private PlantType _type;
-        private decimal _minHeight;
-        private decimal _maxHeight;
-        private decimal _minWidth;
-        private decimal _maxWidth;
-        private List<FloweringMonth> _floweringMonths;
-        private List<SunType> _sun;
-        private List<WateringType> _wateringRequirement;
-        private decimal _minRainfallInches;
-        private decimal _maxRainfallInches;
-        private string _notableVisuals;
-        private decimal _minWinterTempF;
-        private string _CNPS_Soil;
-        private decimal _minSoilpH;
-        private decimal _maxSoilpH;
+        private List<FloweringMonth> _floweringMonths;  // multiple values allowed
+        private SunType _sunRequirement;
+        private WateringType _wateringRequirement;
         private CNPS_Drainage _CNPS_Drainage;
-        private NativeToCounty _Alameda;
-        private NativeToCounty _Contra_Costa;
-        private NativeToCounty _Marin;
-        private NativeToCounty _Napa;
-        private NativeToCounty _San_Francisco;
-        private NativeToCounty _San_Mateo;
-        private NativeToCounty _Santa_Clara;
-        private NativeToCounty _Solano;
-        private NativeToCounty _Sonoma;
-        enum AttractorOf { Unassigned, Unknown, Yes, No }
-        private AttractorOf _butterflies;
-        private AttractorOf _birds;
-        private AttractorOf _hummingbirds;
-        private string _notes;
-        private bool _documentedAsGoodInContainers;
+        private AttractorOf _attractsButterflies;
+        private AttractorOf _attractsBirds;
+        private AttractorOf _attractsHummingbirds;
 
-        // I would not overload AttractorOf to also mean HealthHazardTo. Instead, sep vals:
+        // Mike: I would not overload AttractorOf to also mean HealthHazardTo.
+        // Instead, maintain separate values...
+
         //enum HealthHazardTo { Unassigned, Unknown, Yes, No }
-        //private HealthHazardTo _butterflies;
+        //private HealthHazardTo _attractsButterflies;
         //private HealthHazardTo _birds;
         //private HealthHazardTo _hummingbirds;
 
-
-
-
-        // Here are the constructors, which are called when somebody does "new Plant()"
-
-
-
-        // Here are publically accessible accessors (get/set properties)
-
-
-        // Here are publically callable methods
-
-
-
         // Here are private methods which typically do the real work, 
         // as they are called by the public methods and properties.
+
         private void Initialize()
         {
-            throw new NotImplementedException();
-        }
+            // do any work that needs to be done before using the public properties
+            InitializeCountyDictionary();
 
+            // public field types that require intializations
+            URL = "<Unassigned>";
+            Notes = "<Unassigned>";         
+            CNPS_Soil = "<Unassigned>";     
+            NotableVisual = "<Unassigned>";
+            ScientificName = "<Unassigned>";
+
+            // use the public property setters to set the public properties
+            Type = PlantType.Unassigned;
+            SunRequirement = SunType.Unassigned;
+            WateringRequirement = WateringType.Unassigned;
+            CNPS_Drainage = CNPS_Drainage.Unassigned;
+
+            FloweringMonths = new List<FloweringMonth>();
+            FloweringMonths.Add(FloweringMonth.Unassigned);
+
+            Attracts_Birds = AttractorOf.Unassigned;
+            Attracts_Butterflies = AttractorOf.Unassigned;
+            Attracts_Hummingbirds = AttractorOf.Unassigned;
+
+            NativeTo_Alameda = NativeToCounty.Unassigned;
+            NativeTo_Contra_Costa = NativeToCounty.Unassigned;
+            NativeTo_Napa = NativeToCounty.Unassigned;
+            NativeTo_Santa_Clara = NativeToCounty.Unassigned;
+            NativeTo_SanFrancisco = NativeToCounty.Unassigned;
+            NativeTo_SanMateo = NativeToCounty.Unassigned;
+            NativeTo_Solano = NativeToCounty.Unassigned;
+            NativeTo_Sonoma = NativeToCounty.Unassigned;
+            NativeTo_Marin = NativeToCounty.Unassigned;
+        }
 
     }
 }

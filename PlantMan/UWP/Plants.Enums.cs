@@ -4,13 +4,22 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Plants.Values
+namespace Plants
 {
-    public class Enums
+    // WARNING:
+    // Do not change enums without changing the corresponding IsValidXXXX() method.
+
+    public enum PlantType { Unassigned, Annual_herb, Bush, Fern, Grass, Perennial_herb, Tree, Vine }
+    public enum FloweringMonth { Unassigned, Unknown, NotApplicable, Jan, Feb, Mar, Apr, May, June, July, Aug, Sep, Oct, Nov, Dec }
+    public enum SunType { Unassigned, Full, Partial, Shade }
+    public enum WateringType { Unassigned, Regular, Moderate, Occasional, Infrequent, Drought_tolerant }
+    public enum CNPS_Drainage { Unassigned, Unknown, Fast, Medium, Slow, Standing }
+    public enum NativeToCounty { Unassigned, Unknown, Yes, No };
+    public enum AttractorOf { Unassigned, Unknown, Yes, No }
+
+
+    public static class Enums
     {
-        // WARNING:
-        // Do not change enums without changing the corresponding IsValidXXXX() method.
-        public enum PlantType { Unassigned, Annual_herb, Bush, Fern, Grass, Perennial_herb, Tree, Vine }
         public static bool IsValidPlantType(PlantType value)
         {
             switch (value)
@@ -25,13 +34,12 @@ namespace Plants.Values
                 case PlantType.Vine:
                     break;
                 default:
-                    System.Diagnostics.Debug.WriteLine("Not a valid enum value: " + value.ToString(), "PlantType");
+                    System.Diagnostics.Debug.WriteLine("IsValidPlantType(): Not a valid enum value: " + value.ToString());
                     return false;
             }
             return true;
         }
 
-        public enum FloweringMonth { Unassigned, Unknown, NotApplicable, Jan, Feb, Mar, Apr, May, June, July, Aug, Sep, Oct, Nov, Dec }
         public static bool IsValidFloweringMonth(FloweringMonth value)
         {
             switch (value)
@@ -53,13 +61,12 @@ namespace Plants.Values
                 case FloweringMonth.Dec:
                     break;
                 default:
-                    System.Diagnostics.Debug.WriteLine("Not a valid enum value: " + value.ToString(), "FloweringMonth");
+                    System.Diagnostics.Debug.WriteLine("IsValidFloweringMonth(): Not a valid enum value: " + value.ToString());
                     return false;
             }
             return true;
         }
 
-        public enum SunType { Unassigned, Full, Partial, Shade }
         public static bool IsValidSunType(SunType value)
         {
             switch (value)
@@ -70,13 +77,12 @@ namespace Plants.Values
                 case SunType.Shade:
                     break;
                 default:
-                    System.Diagnostics.Debug.WriteLine("Not a valid enum value: " + value.ToString(), "SunType");
+                    System.Diagnostics.Debug.WriteLine("IsValidSunType(): Not a valid enum value: " + value.ToString());
                     return false;
             }
             return true;
         }
 
-        public enum WateringType { Unassigned, Regular, Moderate, Occasional, Infrequent, Drought_tolerant }
         public static bool IsValidWateringType(WateringType value)
         {
             switch (value)
@@ -89,13 +95,12 @@ namespace Plants.Values
                 case WateringType.Drought_tolerant:
                     break;
                 default:
-                    System.Diagnostics.Debug.WriteLine("Not a valid enum value: " + value.ToString(), "WateringType");
+                    System.Diagnostics.Debug.WriteLine("IsValidWateringType(): Not a valid enum value: " + value.ToString());
                     return false;
             }
             return true;
         }
 
-        public enum CNPS_Drainage { Unassigned, Unknown, Fast, Medium, Slow, Standing }
         public static bool IsValidWateringType(CNPS_Drainage value)
         {
             switch (value)
@@ -108,13 +113,12 @@ namespace Plants.Values
                 case CNPS_Drainage.Standing:
                     break;
                 default:
-                    System.Diagnostics.Debug.WriteLine("Not a valid enum value: " + value.ToString(), "CNPS_Drainage");
+                    System.Diagnostics.Debug.WriteLine("IsValidWateringType(): Not a valid enum value: " + value.ToString());
                     return false;
             }
             return true;
         }
 
-        public enum NativeToCounty { Unassigned, Unknown, Yes, No };
         public static bool IsValidNativeToCounty(NativeToCounty value)
         {
             switch (value)
@@ -125,10 +129,36 @@ namespace Plants.Values
                 case NativeToCounty.No:
                     break;
                 default:
-                    System.Diagnostics.Debug.WriteLine("Not a valid enum value: " + value.ToString(), "NativeToCounty");
+                    System.Diagnostics.Debug.WriteLine("IsValidNativeToCounty(): Not a valid enum value: " + value.ToString());
+                    return false;
+            }
+            return true;
+        }
+
+        public static bool IsValidAttractorOf(AttractorOf value)
+        {
+            switch (value)
+            {
+                case AttractorOf.Unassigned:
+                case AttractorOf.Unknown:
+                case AttractorOf.Yes:
+                case AttractorOf.No:
+                    break;
+                default:
+                    System.Diagnostics.Debug.WriteLine("IsValidAttractorOf(): Not a valid enum value: " + value.ToString());
                     return false;
             }
             return true;
         }
     }
+
+    // When parsing the CSV file, use these values to recognize meaning
+    public static class ValInCsv
+    {
+        public static string[] Unknown = { "?" };
+        public static string[] Yes = { "Y", "y", "Yes", "yes", "x" };
+        public static string[] No = { "N", "n", "No", "no", "<NullAsString>" };
+        public static string[] Unassigned = { "<NullAsString>" };
+    }
+
 }
