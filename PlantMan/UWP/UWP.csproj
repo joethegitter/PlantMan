@@ -104,12 +104,17 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- A reference to the entire .Net Framework and Windows SDK are automatically included -->
+    <EmbeddedResource Include="CSVData\PlantsFixed.csv" />
     <None Include="project.json" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ATextParser.cs" />
+    <Compile Include="IInstanceIDable.cs" />
     <Compile Include="Plant.cs" />
     <Compile Include="Plants.Enums.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UnQuote.cs" />
+    <Compile Include="Utils.cs" />
     <EmbeddedResource Include="Properties\UWP.rd.xml" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
