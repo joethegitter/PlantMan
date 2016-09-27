@@ -109,9 +109,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ATextParser.cs" />
-    <Compile Include="IInstanceIDable.cs" />
     <Compile Include="Plant.cs" />
-    <Compile Include="Plants.Enums.cs" />
+    <Compile Include="Plants_Enums.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="UnQuote.cs" />
     <Compile Include="Utils.cs" />
