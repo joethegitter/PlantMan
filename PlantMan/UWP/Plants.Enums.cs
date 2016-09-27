@@ -14,14 +14,48 @@ namespace PlantMan.Plants
     //      the ValueOfFieldInSource and IndexOfFieldInSource classes.
 
     // single vals
-    public enum PlantType { Unassigned, Unknown, NotApplicable,  Annual_herb, Bush, Fern, Grass, Perennial_herb, Tree, Vine }
-    public enum WateringType { Unassigned, Unknown, NotApplicable,  Regular, Moderate, Occasional, Infrequent, Drought_tolerant }
-    public enum CNPS_Drainage { Unassigned, Unknown, NotApplicable,  Fast, Medium, Slow, Standing }
-    public enum YesNoMaybe { Unassigned, Unknown, NotApplicable,  Yes, No };
+    public enum PlantType
+    {
+        Unassigned = 1, Unknown = 2, NotApplicable = 4,
+        Annual_herb = 8, Bush = 16, Fern = 32, Grass = 64, Perennial_herb = 128, Tree = 256, Vine = 512
+    }
 
-    // multiple vals
-    public enum FloweringMonth { Unassigned, Unknown, NotApplicable, Jan, Feb, Mar, Apr, May, June, July, Aug, Sep, Oct, Nov, Dec }
-    public enum SunType { Unassigned, Unknown, NotApplicable, Full, Partial, Shade }
+    public enum WateringType
+    {
+        Unassigned = 1, Unknown = 2, NotApplicable = 4,
+        Regular = 8, Moderate = 16, Occasional = 32, Infrequent = 64, Drought_tolerant
+    }
+
+    public enum CNPS_Drainage
+    {
+        Unassigned = 1, Unknown = 2, NotApplicable = 4,
+        Fast = 8, Medium = 16, Slow = 64, Standing = 128
+    }
+
+    public enum YesNoMaybe { Unassigned = 1, Unknown = 2, NotApplicable = 4, Yes = 8, No = 16 };
+
+    // [Flags] attribute tells the compiler to treat this enum as a bitfield (for OR'ing, etc)
+    [Flags]         
+    public enum FloweringMonth
+    {
+        Unassigned = 1, Unknown = 2, NotApplicable = 4,
+        Jan = 8, Feb = 16, Mar = 32, Apr = 64, May = 128, Jun = 256,
+        Jul = 512, Aug = 1024, Sep = 2048, Oct = 4096, Nov = 8192, Dec = 16384,
+        AllMonths = (Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct | Nov | Dec)
+
+        //Unassigned =   Math.Pow(2,0), Unknown = 2 ^ 1, NotApplicable = 2 ^ 2,
+        //Jan = 2 ^ 3, Feb = 2 ^ 4, Mar = 2 ^ 5, Apr = 2 ^ 6, May = 2 ^ 7, Jun = 2 ^ 8,
+        //Jul = 2 ^ 9, Aug = 2 ^ 10, Sep = 2 ^ 11, Oct = 2 ^ 12, Nov = 2 ^ 13, Dec = 2 ^ 14,
+        //AllMonths = (Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct | Nov | Dec)
+    }
+
+    [Flags]
+    public enum SunType
+    {
+        Unassigned = 1, Unknown = 2, NotApplicable = 4,
+        Full = 8, Partial = 16, Shade = 32,
+        AllSunTypes = (Full | Partial | Shade)
+    }
 
     public static class Helpers
     {
@@ -45,49 +79,6 @@ namespace PlantMan.Plants
             return true;
         }
 
-        public static bool IsValidFloweringMonth(FloweringMonth value)
-        {
-            switch (value)
-            {
-                case FloweringMonth.Unassigned:
-                case FloweringMonth.Unknown:
-                case FloweringMonth.NotApplicable:
-                case FloweringMonth.Jan:
-                case FloweringMonth.Feb:
-                case FloweringMonth.Mar:
-                case FloweringMonth.Apr:
-                case FloweringMonth.May:
-                case FloweringMonth.June:
-                case FloweringMonth.July:
-                case FloweringMonth.Aug:
-                case FloweringMonth.Sep:
-                case FloweringMonth.Oct:
-                case FloweringMonth.Nov:
-                case FloweringMonth.Dec:
-                    break;
-                default:
-                    System.Diagnostics.Debug.WriteLine("IsValidFloweringMonth(): Not a valid enum value: " + value.ToString());
-                    return false;
-            }
-            return true;
-        }
-
-        public static bool IsValidSunType(SunType value)
-        {
-            switch (value)
-            {
-                case SunType.Unassigned:
-                case SunType.Full:
-                case SunType.Partial:
-                case SunType.Shade:
-                    break;
-                default:
-                    System.Diagnostics.Debug.WriteLine("IsValidSunType(): Not a valid enum value: " + value.ToString());
-                    return false;
-            }
-            return true;
-        }
-
         public static bool IsValidWateringType(WateringType value)
         {
             switch (value)
@@ -106,7 +97,7 @@ namespace PlantMan.Plants
             return true;
         }
 
-        public static bool IsValidWateringType(CNPS_Drainage value)
+        public static bool IsValidCNPS_DrainageType(CNPS_Drainage value)
         {
             switch (value)
             {
@@ -124,7 +115,7 @@ namespace PlantMan.Plants
             return true;
         }
 
-        public static bool IsValidNativeToCounty(YesNoMaybe value)
+        public static bool IsValidYesNoMaybe(YesNoMaybe value)
         {
             switch (value)
             {
@@ -134,25 +125,77 @@ namespace PlantMan.Plants
                 case YesNoMaybe.No:
                     break;
                 default:
-                    System.Diagnostics.Debug.WriteLine("IsValidNativeToCounty(): Not a valid enum value: " + value.ToString());
+                    System.Diagnostics.Debug.WriteLine("IsValidYesNoMaybe(): Not a valid enum value: " + value.ToString());
                     return false;
             }
             return true;
         }
 
-        public static bool IsValidAttractorOf(YesNoMaybe value)
+        public static bool IsValidFloweringMonthValue(int value)
         {
-            switch (value)
-            {
-                case YesNoMaybe.Unassigned:
-                case YesNoMaybe.Unknown:
-                case YesNoMaybe.Yes:
-                case YesNoMaybe.No:
-                    break;
-                default:
-                    System.Diagnostics.Debug.WriteLine("IsValidAttractorOf(): Not a valid enum value: " + value.ToString());
-                    return false;
-            }
+            FloweringMonth incoming = (FloweringMonth)value;
+
+            FloweringMonth AllVals = (FloweringMonth.Unassigned | FloweringMonth.Unknown |
+                FloweringMonth.NotApplicable | FloweringMonth.Jan |
+                FloweringMonth.Feb | FloweringMonth.Mar | FloweringMonth.Apr |
+                FloweringMonth.May | FloweringMonth.Jun | FloweringMonth.Jul |
+                FloweringMonth.Aug | FloweringMonth.Sep | FloweringMonth.Oct | FloweringMonth.Nov | FloweringMonth.Dec);
+
+            // determine if any of the FW enums contained in incoming are
+            // also contained within the entire set.
+            bool HasMembersOfAll = AllVals.HasFlag(incoming);
+            if (!HasMembersOfAll) return false;
+
+            // determine if any of the FW enums contained in incoming are
+            // also contained within the month-only-set.
+            bool HasMembersOfMonths = FloweringMonth.AllMonths.HasFlag(incoming);
+
+            // determine if any of the FW enums contained in incoming are
+            // also contained within the there-can-be-only-one set.
+            FloweringMonth TCBOO = (FloweringMonth.Unassigned | FloweringMonth.Unknown | FloweringMonth.NotApplicable);
+            bool IsOneOfExcl = TCBOO.HasFlag((FloweringMonth)value);
+
+            if (HasMembersOfMonths && IsOneOfExcl) return false;  // bad combo
+
+            // determine if incoming contains more than one of the values
+            // from the TCBOO set.
+            if (incoming.HasFlag(FloweringMonth.Unassigned) && incoming.HasFlag(FloweringMonth.Unknown)) return false;
+            if (incoming.HasFlag(FloweringMonth.Unassigned) && incoming.HasFlag(FloweringMonth.NotApplicable)) return false;
+            if (incoming.HasFlag(FloweringMonth.Unknown) && incoming.HasFlag(FloweringMonth.NotApplicable)) return false;
+
+            return true;
+        }
+
+        public static bool IsValidSunTypeValue(int value)
+        {
+            SunType incoming = (SunType)value;
+
+            SunType AllVals = (SunType.Unassigned | SunType.Unknown |
+                SunType.NotApplicable | SunType.Full |
+                SunType.Partial | SunType.Shade);
+
+            // determine if any of the FW enums contained in incoming are
+            // also contained within the entire set.
+            bool HasMembersOfAll = AllVals.HasFlag(incoming);
+            if (!HasMembersOfAll) return false;
+
+            // determine if any of the FW enums contained in incoming are
+            // also contained within the suntypes-only-set.
+            bool HasMembersOfSunTypes = SunType.AllSunTypes.HasFlag(incoming);
+
+            // determine if any of the FW enums contained in incoming are
+            // also contained within the there-can-be-only-one set.
+            SunType TCBOO = (SunType.Unassigned | SunType.Unknown | SunType.NotApplicable);
+            bool IsOneOfExcl = TCBOO.HasFlag((SunType)value);
+
+            if (HasMembersOfSunTypes && IsOneOfExcl) return false;  // bad combo
+
+            // determine if incoming contains more than one of the values
+            // from the TCBOO set.
+            if (incoming.HasFlag(SunType.Unassigned) && incoming.HasFlag(SunType.Unknown)) return false;
+            if (incoming.HasFlag(SunType.Unassigned) && incoming.HasFlag(SunType.NotApplicable)) return false;
+            if (incoming.HasFlag(SunType.Unknown) && incoming.HasFlag(SunType.NotApplicable)) return false;
+
             return true;
         }
     }

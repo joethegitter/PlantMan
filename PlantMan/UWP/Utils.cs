@@ -227,50 +227,60 @@ namespace PlantMan
         }
 
         /// <summary>
-        /// If the value in the field cannot be parsed into a number, returns Decimal.Null
+        /// If the value in the field cannot resolves to empty string, returns Decimal.Null, 
+        /// indicating "Unassigned". If string resolves to UnivUnknown, returns Decimal.MinVal.
         /// </summary>
         /// <param name="list"></param>
         /// <param name="index"></param>
         /// <param name="outVal"></param>
         /// <param name="lineNumber"></param>
         /// <param name="suppressException"></param>
-        /// <returns></returns>
-        private static bool GetDecimalValue(List<string> list, int index, out decimal? outVal, int lineNumber, bool suppressException = false)
+        /// <returns>If value was null/empty/whitespace/not recognized as meaningful, returns Decimal.Null, indicating "Unassigned". 
+        /// If val was UnivUnknown, returns Decimal.MinVal</returns>
+        private static bool GetDecimalValue(List<string> list, int index, out decimal outVal, int lineNumber, bool suppressException = false)
         {
             string start = "ParseError: Line " + lineNumber.ToString() + " Field " + index.ToString() + " - ";
-            decimal? retDec = null;
+            decimal retDec = decimal.Zero;
             bool retBool = false;
 
             if (list[index] == null)
             {
                 Debug.Assert(false, start + "value in list == null");
-                outVal = null;
+                outVal = decimal.Zero;
                 return false;
             }
 
             if (string.IsNullOrWhiteSpace(list[index]))
             {
                 Debug.Assert(false, start + "value in list == whitespace");
-                outVal = null;
+                outVal = decimal.Zero;
                 return false;
             }
 
             if (string.IsNullOrEmpty(list[index]))
             {
                 Debug.Assert(false, start + "value in list != null && !IsNullOrEmpty(value)");
-                outVal = null;
+                outVal = decimal.Zero;
                 return false;
             }
 
             // if we are here, we have chars of some type. let's see if they are numbers
             bool success = false;
             decimal outie;
-            success = decimal.TryParse(list[index], out outie);
+            string str = list[index].Trim();
+
+            if (str == ValueOfFieldInSource.UnivUnknown)
+            {
+                outVal = Decimal.MinValue;
+                return true;
+            }
+
+            success = decimal.TryParse(str, out outie);
             if (!success)
             {
-                Debug.Assert(false, start + "not a number, value in list = " + list[index]);
-                outVal = null;
-                return false;
+                Debug.Assert(false, start + "not a number, value in list = " + str);
+                retDec = decimal.Zero;
+                retBool = false;
             }
             else
             {
@@ -509,7 +519,6 @@ namespace PlantMan
             return indexIntoArray;
         }
 
-
         /// <summary>
         /// Returns NULL if invalid name passed, Plant could not be created.
         /// </summary>
@@ -534,7 +543,7 @@ namespace PlantMan
             strVal = GetStringValue(list, IndexOfFieldInSource.Name, lineNumber);
             if (strVal == "")
             {
-                Debug.WriteLine(start + "Name - INVALID NAME, record will be skipped.");
+                Debug.WriteLine(start + "Name - Name field empty, record will be skipped.");
                 try
                 {
                     throw new InvalidOperationException(start + "Name - INVALID NAME, record will be skipped.");
@@ -548,7 +557,7 @@ namespace PlantMan
 
             try
             {
-                pl = new Plant(list[0]);
+                pl = new Plant(strVal);
             }
             catch (Exception ex)
             {
@@ -612,102 +621,214 @@ namespace PlantMan
 
             #region Numeric Fields
             // numerics
-            // If we cannot read a numeric value from the CSV, we set the property to NULL
-            // (YES! Because it's a nullable decimal type. Weird, I know...
-            Decimal? decVal;
+
+            // If GetDecimalValue finds a number it returns true and decVal holds that number.
+            // If it finds UnivUnknown it returns true, and decVal holds Decimal.MinVal.
+            // If it finds null/empty/whitespace/not_a_number, it returns false, and decVal holds zero.
+            Decimal decVal;
+            Plant.DecimalLike adl = new Plant.DecimalLike();
+
             if (GetDecimalValue(list, IndexOfFieldInSource.MaxHeight, out decVal, lineNumber))
             {
-                pl.MaxHeight_Nullable = decVal;
+                // succes was true, so field held a real value or UnivUnknown
+                // if field was UnivUnknown, decVal will contain decimal.MinValue
+                if (decVal == Decimal.MinValue)
+                {
+                    adl = new Plant.DecimalLike(true);
+                }
+                else
+                {
+                    adl = new Plant.DecimalLike(decVal);
+                }
             }
             else
             {
-                Debug.WriteLine(start + "MaxHeight_Nullable - could not be parsed, will become null.");
-                pl.MaxHeight_Nullable = null;
+                // success was false, so field held an empty/null/whitespace value
+                Debug.WriteLine(start + "MaxHeight - not a meaningful val, will become Unassigned.");
+                adl = new Plant.DecimalLike();
             }
+            pl.MaxHeight = adl;
+
 
             if (GetDecimalValue(list, IndexOfFieldInSource.MinHeight, out decVal, lineNumber))
             {
-                pl.MinHeight_Nullable = decVal;
+                // succes was true, so field held a real value or UnivUnknown
+                // if field was UnivUnknown, decVal will contain decimal.MinValue
+                if (decVal == Decimal.MinValue)
+                {
+                    adl = new Plant.DecimalLike(true);
+                }
+                else
+                {
+                    adl = new Plant.DecimalLike(decVal);
+                }
             }
             else
             {
-                Debug.WriteLine(start + "MinHeight_Nullable - could not be parsed, will become null.");
-                pl.MinHeight_Nullable = null;
+                // success was false, so field held an empty/null/whitespace value
+                Debug.WriteLine(start + "MaxHeight - not a meaningful val, will become Unassigned.");
+                adl = new Plant.DecimalLike();
             }
+            pl.MinHeight = adl;
+
 
             if (GetDecimalValue(list, IndexOfFieldInSource.MaxWidth, out decVal, lineNumber))
             {
-                pl.MaxWidth_Nullable = decVal;
+                // succes was true, so field held a real value or UnivUnknown
+                // if field was UnivUnknown, decVal will contain decimal.MinValue
+                if (decVal == Decimal.MinValue)
+                {
+                    adl = new Plant.DecimalLike(true);
+                }
+                else
+                {
+                    adl = new Plant.DecimalLike(decVal);
+                }
             }
             else
             {
-                Debug.WriteLine(start + "MaxWidth - could not be parsed, will become null.");
-                pl.MaxWidth_Nullable = null;
+                // success was false, so field held an empty/null/whitespace value
+                Debug.WriteLine(start + "MaxWidth - not a meaningful val, will become Unassigned.");
+                adl = new Plant.DecimalLike();
             }
+            pl.MaxWidth = adl;
+
 
             if (GetDecimalValue(list, IndexOfFieldInSource.MinWidth, out decVal, lineNumber))
             {
-                pl.MinWidth_Nullable = decVal;
+                // succes was true, so field held a real value or UnivUnknown
+                // if field was UnivUnknown, decVal will contain decimal.MinValue
+                if (decVal == Decimal.MinValue)
+                {
+                    adl = new Plant.DecimalLike(true);
+                }
+                else
+                {
+                    adl = new Plant.DecimalLike(decVal);
+                }
             }
             else
             {
-                Debug.WriteLine(start + "MinWidth_Nullable - could not be parsed, will become null.");
-                pl.MinWidth_Nullable = null;
+                // success was false, so field held an empty/null/whitespace value
+                Debug.WriteLine(start + "MinWidth - not a meaningful val, will become Unassigned.");
+                adl = new Plant.DecimalLike();
             }
+            pl.MinWidth = adl;
+
 
             if (GetDecimalValue(list, IndexOfFieldInSource.MaxRainfallInches, out decVal, lineNumber))
             {
-                pl.MaxRainfallInches_Nullable = decVal;
+                // succes was true, so field held a real value or UnivUnknown
+                // if field was UnivUnknown, decVal will contain decimal.MinValue
+                if (decVal == Decimal.MinValue)
+                {
+                    adl = new Plant.DecimalLike(true);
+                }
+                else
+                {
+                    adl = new Plant.DecimalLike(decVal);
+                }
             }
             else
             {
-                Debug.WriteLine(start + "MaxRainfallInches - could not be parsed, will become null.");
-                pl.MaxRainfallInches_Nullable = null;
+                // success was false, so field held an empty/null/whitespace value
+                Debug.WriteLine(start + "MaxRainfallInches - not a meaningful val, will become Unassigned.");
+                adl = new Plant.DecimalLike();
             }
+            pl.MaxRainfallInches = adl;
+
 
             if (GetDecimalValue(list, IndexOfFieldInSource.MaxSoilpH, out decVal, lineNumber))
             {
-                pl.MaxSoilpH_Nullable = decVal;
+                // succes was true, so field held a real value or UnivUnknown
+                // if field was UnivUnknown, decVal will contain decimal.MinValue
+                if (decVal == Decimal.MinValue)
+                {
+                    adl = new Plant.DecimalLike(true);
+                }
+                else
+                {
+                    adl = new Plant.DecimalLike(decVal);
+                }
             }
             else
             {
-                Debug.WriteLine(start + "MaxSoilpH_Nullable - could not be parsed, will become null.");
-                pl.MaxSoilpH_Nullable = null;
+                // success was false, so field held an empty/null/whitespace value
+                Debug.WriteLine(start + "MaxSoilpH - not a meaningful val, will become Unassigned.");
+                adl = new Plant.DecimalLike();
             }
+            pl.MaxSoilpH = adl;
+
 
             if (GetDecimalValue(list, IndexOfFieldInSource.MinSoilpH, out decVal, lineNumber))
             {
-                pl.MinSoilpH_Nullable = decVal;
+                // succes was true, so field held a real value or UnivUnknown
+                // if field was UnivUnknown, decVal will contain decimal.MinValue
+                if (decVal == Decimal.MinValue)
+                {
+                    adl = new Plant.DecimalLike(true);
+                }
+                else
+                {
+                    adl = new Plant.DecimalLike(decVal);
+                }
             }
             else
             {
-                Debug.WriteLine(start + "MinSoilpH_Nullable - could not be parsed, will become null.");
-                pl.MinSoilpH_Nullable = null;
+                // success was false, so field held an empty/null/whitespace value
+                Debug.WriteLine(start + "MinSoilpH - not a meaningful val, will become Unassigned.");
+                adl = new Plant.DecimalLike();
             }
+            pl.MinSoilpH = adl;
+
 
             if (GetDecimalValue(list, IndexOfFieldInSource.MinRainfallInches, out decVal, lineNumber))
             {
-                pl.MinRainfallInches_Nullable = decVal;
+                // succes was true, so field held a real value or UnivUnknown
+                // if field was UnivUnknown, decVal will contain decimal.MinValue
+                if (decVal == Decimal.MinValue)
+                {
+                    adl = new Plant.DecimalLike(true);
+                }
+                else
+                {
+                    adl = new Plant.DecimalLike(decVal);
+                }
             }
             else
             {
-                Debug.WriteLine(start + "MinRainfallInches_Nullable - could not be parsed, will become null.");
-                pl.MinRainfallInches_Nullable = null;
+                // success was false, so field held an empty/null/whitespace value
+                Debug.WriteLine(start + "MinRainfallInches - not a meaningful val, will become Unassigned.");
+                adl = new Plant.DecimalLike();
             }
+            pl.MinRainfallInches = adl;
+
 
             if (GetDecimalValue(list, IndexOfFieldInSource.MinWinterTempF, out decVal, lineNumber))
             {
-                pl.MinWinterTempF_Nullable = decVal;
+                // succes was true, so field held a real value or UnivUnknown
+                // if field was UnivUnknown, decVal will contain decimal.MinValue
+                if (decVal == Decimal.MinValue)
+                {
+                    adl = new Plant.DecimalLike(true);
+                }
+                else
+                {
+                    adl = new Plant.DecimalLike(decVal);
+                }
             }
             else
             {
-                Debug.WriteLine(start + "MinWinterTempF_Nullable - could not be parsed, will become null.");
-                pl.MinWinterTempF_Nullable = null;
+                // success was false, so field held an empty/null/whitespace value
+                Debug.WriteLine(start + "MinWinterTempF - not a meaningful val, will become Unassigned.");
+                adl = new Plant.DecimalLike();
             }
+            pl.MinWinterTempF = adl;
+
 
             #endregion Numeric Fields
 
-            #region Enum Properties
+            #region Single Enum Properties
 
             // Single Enum values
             // indexOfCanonicalValue is the index into the specific array of strings
@@ -972,25 +1093,42 @@ namespace PlantMan
             }
             pl.DocumentedAsGoodInContainers = yn;
 
+            #endregion Single Enum Properties
+
+            #region Multiple-Value Enum Properties
+
             // Multiple Value Properties
+            strVal = GetStringValue(list, IndexOfFieldInSource.FloweringMonths, lineNumber);
+            if (strVal == ValueOfFieldInSource.UnivUnassigned)
+            {
+                pl.FloweringMonths = FloweringMonth.Unassigned;
+            }
+            else if (strVal == ValueOfFieldInSource.UnivUnknown)
+            {
+                pl.FloweringMonths = FloweringMonth.Unknown;
+            }
+            else if (strVal == ValueOfFieldInSource.UnivNotApplicable)
+            {
+                pl.FloweringMonths = FloweringMonth.NotApplicable;
+            }
+            else
+            {
+                FloweringMonth myVal;
+                if (Enum.TryParse<FloweringMonth>(strVal, out myVal))
+                {
+                    pl.FloweringMonths = myVal;
+                }
+                else
+                {
+                    pl.FloweringMonths = FloweringMonth.Unassigned;
+                    Debug.Assert(false, start + "Could not parse FloweringMonths string: " + strVal);
+                }
 
+                // SunTypes
+                // JOE
+            }
 
-            // FloweringMonths
-
-
-            // SunRequirements
-            // TODO: hack now, complete later
-            // By default this is set to empty list
-
-            // Joe: backing field for FloweringMonths and SunRequirements should be a flagged enum
-            // structure. User facing can remain lists, but have them to resolve to OR'd values.
-            // use the 
-            // EnumType value = EnumType.Enum.Parse(typeOf(EnumType), "mar,apr,jun") to have them
-            // automatically Ord. See page 807-808
-
-
-
-            #endregion Enum Properties
+            #endregion Multiple-Value Enum Properties
 
             return pl;
 
