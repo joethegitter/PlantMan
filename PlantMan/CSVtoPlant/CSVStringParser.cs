@@ -1026,349 +1026,6 @@ namespace CSVtoPlant
 
     public class Mapper
     {
-        public static Dictionary<string, Plant> ParseDataIntoStore(object currentApp, string resourceName, bool dataHasHeaderLine = false)
-        {
-            // create a dictionary of KeyValuePairs, where KVP.Key is name of plant,
-            // and KVP.Value is the actual Plant object. Well, intialize one.
-            Dictionary<string, Plant> PlantDic = new Dictionary<string, Plant>();
-
-            Assembly assembly = currentApp.GetType().GetTypeInfo().Assembly;
-            string resource = resourceName;
-            string assName = assembly.GetName().ToString();
-
-            // string[] resNames = assembly.GetManifestResourceNames();
-
-            // TODO:
-            // HACK:
-            // fuck it, i boned this code a bit. Just insert the correct rsource name now
-            resource = "UWP_TestBed.CSVData.PlantsFixed.csv";
-
-
-            // Read stream and remove quotes                       
-            string theUnQuotedVersion = "";
-            using (Stream streamCSV = assembly.GetManifestResourceStream(resource))
-            {
-                // TODO: joe go get that code which verified the resource existed
-                if (streamCSV == null)
-                {
-                    throw new ArgumentException("Could not open a stream from that resource. Misspelled?");
-                }
-
-                theUnQuotedVersion = UnQuoter.UnQuote(streamCSV);
-            }
-
-            using (Stream stream = UnQuoter.GenerateStreamFromString(theUnQuotedVersion))
-            {
-                using (DelimitedFieldParser parser = new DelimitedFieldParser(stream))
-                {
-                    // set the properties of the DelimitedFieldParser object
-                    parser.SetDelimiters(new char[] { ',' });   // NEW added
-                    parser.HasFieldsEnclosedInQuotes = true;    // NEW addeds
-
-                    bool headerConsumed = false;
-
-                    int lineCounter = 0;
-
-                    while (!parser.EndOfFile)
-                    {
-                        // Read the line into "TextFields" (specific to this parser)
-                        TextFields tfs = parser.ReadFields();
-                        lineCounter++;
-
-                        // if useHeader, ignore over first line
-                        if (dataHasHeaderLine && lineCounter == 1) { headerConsumed = true; continue; }
-
-                        // convert TextFields into List of strings
-                        string[] tfa = tfs.ToArray();
-                        List<string> temp = new List<string>(tfa);
-                        //List<string> temp = tfa.ToList<string>();
-
-                        // Put the quotes back into each field
-                        List <string> theFields = new List<string>();
-                        foreach (string s in temp)
-                        {
-                            string y = UnQuoter.ReQuoteField(s);
-                            Debug.WriteLine("Line " + lineCounter.ToString() + ": " + y);
-                            theFields.Add(y);
-                        }
-
-                        Plant pl = PlantFromListOfFields(theFields, lineCounter);
-
-                        if (pl == null)
-                        {
-                            throw new InvalidOperationException("PlantFromTextFields returned a null Plant.");
-                        }
-
-                        if (pl.Name == null)
-                        {
-                            throw new InvalidOperationException("PlantFromTextFields returned a Plant with a null name.");
-                        }
-
-                        try
-                        {
-                            PlantDic.Add(pl.Name, pl);
-                        }
-                        catch (ArgumentException ae)
-                        {
-                            throw new InvalidOperationException("Tried to add a Plant already in the Dictionary. See Inner.", ae);
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new InvalidOperationException("Exception thrown adding Plant to Dictionary. See Inner.", ex);
-                        }
-                    }
-                }
-            }
-            return PlantDic;
-        }
-
-        /// <summary>
-        /// If the value in the field cannot resolves to empty string, returns Decimal.Null, 
-        /// indicating "Unassigned". If string resolves to UnivUnknown, returns Decimal.MinVal.
-        /// </summary>
-        /// <param name="list"></param>
-        /// <param name="index"></param>
-        /// <param name="outVal"></param>
-        /// <param name="lineNumber"></param>
-        /// <param name="suppressException"></param>
-        /// <returns>If value was null/empty/whitespace/not recognized as meaningful, returns Decimal.Null, indicating "Unassigned". 
-        /// If val was UnivUnknown, returns Decimal.MinVal</returns>
-        private static bool GetDecimalValue(List<string> list, int index, out decimal outVal, int lineNumber, bool suppressException = false)
-        {
-            string start = "ParseError: Line " + lineNumber.ToString() + " Field " + index.ToString() + " - ";
-            decimal retDec = decimal.Zero;
-            bool retBool = false;
-
-            if (list[index] == null)
-            {
-                Debug.Assert(false, start + "value in list == null");
-                outVal = decimal.Zero;
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(list[index]))
-            {
-                Debug.Assert(false, start + "value in list == whitespace");
-                outVal = decimal.Zero;
-                return false;
-            }
-
-            if (string.IsNullOrEmpty(list[index]))
-            {
-                Debug.Assert(false, start + "value in list != null && !IsNullOrEmpty(value)");
-                outVal = decimal.Zero;
-                return false;
-            }
-
-            // if we are here, we have chars of some type. let's see if they are numbers
-            bool success = false;
-            decimal outie;
-            string str = list[index].Trim();
-
-            if (str == ValueOfFieldInSource.UnivUnknown)
-            {
-                outVal = Decimal.MinValue;
-                return true;
-            }
-
-            success = decimal.TryParse(str, out outie);
-            if (!success)
-            {
-                Debug.Assert(false, start + "not a number, value in list = " + str);
-                retDec = decimal.Zero;
-                retBool = false;
-            }
-            else
-            {
-                retDec = outie;
-                retBool = true;
-            }
-            outVal = retDec;
-            return retBool;
-        }
-
-        private static string GetStringValue(List<string> list, int index, int lineNumber, bool suppressException = false)
-        {
-            string start = "ParseError: Line " + lineNumber.ToString() + " Field " + index.ToString() + " - ";
-
-            string retVal = "";
-
-            if (list[index] == null)
-            {
-                Debug.WriteLine(start + "field == null.");
-            }
-            else if (string.IsNullOrWhiteSpace(list[index]))
-            {
-                Debug.WriteLine(start + "field == whitespace only.");
-            }
-            else if (string.IsNullOrEmpty(list[index]))
-            {
-                Debug.WriteLine(start + "field == string.Empty().");
-            }
-
-            string ARealString = list[index].Trim();
-            if (string.IsNullOrEmpty(ARealString))
-            {
-                Debug.WriteLine(start + "is Empty after Trim().");
-                retVal = "";
-            }
-            else
-            {
-                retVal = ARealString;
-            }
-            return retVal;
-        }
-
-        /// <summary>
-        /// Reads the text value of a field representing a value from an enjm... JOE write
-        /// </summary>
-        /// <param name="list"></param>
-        /// <param name="index"></param>
-        /// <param name="suppressException"></param>
-        /// <returns>-1 for Unassigned </returns>
-        private static int GetIndexOfSingleEnumValue(List<string> list, int index, int lineNumber, bool suppressException = false)
-        {
-            string start = "ParseNotation: Line " + lineNumber.ToString() + " Field " + index.ToString() + " - ";
-
-            int indexIntoArray = -1;
-            string trimmed = "";
-
-            // Translate all variants of null or empty or whitespace to "";
-            // but articulate what the actual value was here.
-            if (list[index] == null)
-            {
-                Debug.Assert(false, start + "value in list == null");
-                trimmed = "";
-            }
-            else if (string.IsNullOrWhiteSpace(list[index]))
-            {
-                Debug.Assert(false, start + "value in list == whitespace");
-                trimmed = "";
-            }
-            else if (string.IsNullOrEmpty(list[index]))
-            {
-                Debug.Assert(false, start + "value in list == not null but IsNullOrEmpty() fails.");
-                trimmed = "";
-            }
-            else
-            {
-                trimmed = list[index].Trim();
-            }
-
-            // Let each enum type decide how to handle empty value.
-
-            // Determine which static array we should look in to find the value stored in list[index].
-            // Once you determine which array to look in, return the index of that array where the field
-            // value was found. If not found, return -1.
-            switch (index)
-            {
-                case IndexOfFieldInSource.Type:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.PlantType, trimmed, StringComparer.OrdinalIgnoreCase);
-                    if (indexIntoArray > -1)
-                    {
-                        return indexIntoArray;
-                    }
-                    else
-                    {
-                        indexIntoArray = -1;
-                    }
-                    break;
-
-                case IndexOfFieldInSource.CNPS_Drainage:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.CNPS_Drainage, trimmed, StringComparer.OrdinalIgnoreCase);
-                    if (indexIntoArray > -1)
-                    {
-                        // that was a valid value for this field, so return the
-                        // index into array of valid values for this field.
-                        return indexIntoArray;
-                    }
-                    else
-                    {
-                        indexIntoArray = -1;
-                    }
-                    break;
-
-                case IndexOfFieldInSource.SunRequirement:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
-                    if (indexIntoArray > -1)
-                    {
-                        return indexIntoArray;
-                    }
-                    else
-                    {
-                        indexIntoArray = -1;
-                    }
-                    break;
-
-                case IndexOfFieldInSource.WateringRequirements:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
-                    if (indexIntoArray > -1)
-                    {
-                        return indexIntoArray;
-                    }
-                    else
-                    {
-                        indexIntoArray = -1;
-                    }
-                    break;
-
-                case IndexOfFieldInSource.AttractsBirds:
-                case IndexOfFieldInSource.AttractsButterflies:
-                case IndexOfFieldInSource.AttractsHummingbirds:
-                case IndexOfFieldInSource.AttractsNativeBees:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
-                    if (indexIntoArray > -1)
-                    {
-                        return indexIntoArray;
-                    }
-                    else
-                    {
-                        indexIntoArray = -1;
-                    }
-                    break;
-
-                case IndexOfFieldInSource.Alameda:
-                case IndexOfFieldInSource.Contra_Costa:
-                case IndexOfFieldInSource.Marin:
-                case IndexOfFieldInSource.Napa:
-                case IndexOfFieldInSource.Santa_Clara:
-                case IndexOfFieldInSource.San_Francisco:
-                case IndexOfFieldInSource.San_Mateo:
-                case IndexOfFieldInSource.Solano:
-                case IndexOfFieldInSource.Sonoma:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
-                    if (indexIntoArray > -1)
-                    {
-                        return indexIntoArray;
-                    }
-                    else
-                    {
-                        indexIntoArray = -1;
-                    }
-                    break;
-
-                case IndexOfFieldInSource.DocumentedAsGoodInContainers:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.YesNoMaybe, trimmed, StringComparer.OrdinalIgnoreCase);
-                    if (indexIntoArray > -1)
-                    {
-                        return indexIntoArray;
-                    }
-                    else
-                    {
-                        indexIntoArray = -1;
-                    }
-                    break;
-
-                default:
-                    {
-                        Debug.WriteLine("Umappable value at Field Index: " + index.ToString());
-                        if (!suppressException) throw new InvalidOperationException("Umappable value at Field Index: " + index.ToString());
-                        return indexIntoArray; // should still be -1
-                    }
-            }
-            return indexIntoArray;
-        }
-
         /// <summary>
         /// Returns NULL if invalid name passed, Plant could not be created.
         /// </summary>
@@ -1983,6 +1640,352 @@ namespace CSVtoPlant
             return pl;
 
         }
+
+        public static Dictionary<string, Plant> ParseDataIntoStore(object currentApp, string resourceName, bool dataHasHeaderLine = false)
+        {
+            // create a dictionary of KeyValuePairs, where KVP.Key is name of plant,
+            // and KVP.Value is the actual Plant object. Well, intialize one.
+            Dictionary<string, Plant> PlantDic = new Dictionary<string, Plant>();
+
+            Assembly assembly = currentApp.GetType().GetTypeInfo().Assembly;
+            string resource = resourceName;
+            string assName = assembly.GetName().ToString();
+
+            // joe, if this code isn't working, make it work
+
+            string[] resNames = assembly.GetManifestResourceNames();
+
+            // TODO:
+            // HACK:
+            // fuck it, i boned this code a bit. Just insert the correct rsource name now
+            // resource = "UWP_TestBed.CSVData.PlantsFixed.csv";
+
+
+            // Read stream and remove quotes                       
+            string theUnQuotedVersion = "";
+            using (Stream streamCSV = assembly.GetManifestResourceStream(resource))
+            {
+                // TODO: joe go get that code which verified the resource existed
+                if (streamCSV == null)
+                {
+                    throw new ArgumentException("Could not open a stream from that resource. Misspelled?");
+                }
+
+                theUnQuotedVersion = UnQuoter.UnQuote(streamCSV);
+            }
+
+            using (Stream stream = UnQuoter.GenerateStreamFromString(theUnQuotedVersion))
+            {
+                using (DelimitedFieldParser parser = new DelimitedFieldParser(stream))
+                {
+                    // set the properties of the DelimitedFieldParser object
+                    parser.SetDelimiters(new char[] { ',' });   // NEW added
+                    parser.HasFieldsEnclosedInQuotes = true;    // NEW addeds
+
+                    bool headerConsumed = false;
+
+                    int lineCounter = 0;
+
+                    while (!parser.EndOfFile)
+                    {
+                        // Read the line into "TextFields" (specific to this parser)
+                        TextFields tfs = parser.ReadFields();
+                        lineCounter++;
+
+                        // if useHeader, ignore over first line
+                        if (dataHasHeaderLine && lineCounter == 1) { headerConsumed = true; continue; }
+
+                        // convert TextFields into List of strings
+                        string[] tfa = tfs.ToArray();
+                        List<string> temp = new List<string>(tfa);
+                        //List<string> temp = tfa.ToList<string>();
+
+                        // Put the quotes back into each field
+                        List <string> theFields = new List<string>();
+                        foreach (string s in temp)
+                        {
+                            string y = UnQuoter.ReQuoteField(s);
+                            Debug.WriteLine("Line " + lineCounter.ToString() + ": " + y);
+                            theFields.Add(y);
+                        }
+
+                        Plant pl = PlantFromListOfFields(theFields, lineCounter);
+
+                        if (pl == null)
+                        {
+                            throw new InvalidOperationException("PlantFromTextFields returned a null Plant.");
+                        }
+
+                        if (pl.Name == null)
+                        {
+                            throw new InvalidOperationException("PlantFromTextFields returned a Plant with a null name.");
+                        }
+
+                        try
+                        {
+                            PlantDic.Add(pl.Name, pl);
+                        }
+                        catch (ArgumentException ae)
+                        {
+                            throw new InvalidOperationException("Tried to add a Plant already in the Dictionary. See Inner.", ae);
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new InvalidOperationException("Exception thrown adding Plant to Dictionary. See Inner.", ex);
+                        }
+                    }
+                }
+            }
+            return PlantDic;
+        }
+
+        /// <summary>
+        /// If the value in the field cannot resolves to empty string, returns Decimal.Null, 
+        /// indicating "Unassigned". If string resolves to UnivUnknown, returns Decimal.MinVal.
+        /// </summary>
+        /// <param name="list"></param>
+        /// <param name="index"></param>
+        /// <param name="outVal"></param>
+        /// <param name="lineNumber"></param>
+        /// <param name="suppressException"></param>
+        /// <returns>If value was null/empty/whitespace/not recognized as meaningful, returns Decimal.Null, indicating "Unassigned". 
+        /// If val was UnivUnknown, returns Decimal.MinVal</returns>
+        private static bool GetDecimalValue(List<string> list, int index, out decimal outVal, int lineNumber, bool suppressException = false)
+        {
+            string start = "ParseError: Line " + lineNumber.ToString() + " Field " + index.ToString() + " - ";
+            decimal retDec = decimal.Zero;
+            bool retBool = false;
+
+            if (list[index] == null)
+            {
+                Debug.Assert(false, start + "value in list == null");
+                outVal = decimal.Zero;
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(list[index]))
+            {
+                Debug.Assert(false, start + "value in list == whitespace");
+                outVal = decimal.Zero;
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(list[index]))
+            {
+                Debug.Assert(false, start + "value in list != null && !IsNullOrEmpty(value)");
+                outVal = decimal.Zero;
+                return false;
+            }
+
+            // if we are here, we have chars of some type. let's see if they are numbers
+            bool success = false;
+            decimal outie;
+            string str = list[index].Trim();
+
+            if (str == ValueOfFieldInSource.UnivUnknown)
+            {
+                outVal = Decimal.MinValue;
+                return true;
+            }
+
+            success = decimal.TryParse(str, out outie);
+            if (!success)
+            {
+                Debug.Assert(false, start + "not a number, value in list = " + str);
+                retDec = decimal.Zero;
+                retBool = false;
+            }
+            else
+            {
+                retDec = outie;
+                retBool = true;
+            }
+            outVal = retDec;
+            return retBool;
+        }
+
+        private static string GetStringValue(List<string> list, int index, int lineNumber, bool suppressException = false)
+        {
+            string start = "ParseError: Line " + lineNumber.ToString() + " Field " + index.ToString() + " - ";
+
+            string retVal = "";
+
+            if (list[index] == null)
+            {
+                Debug.WriteLine(start + "field == null.");
+            }
+            else if (string.IsNullOrWhiteSpace(list[index]))
+            {
+                Debug.WriteLine(start + "field == whitespace only.");
+            }
+            else if (string.IsNullOrEmpty(list[index]))
+            {
+                Debug.WriteLine(start + "field == string.Empty().");
+            }
+
+            string ARealString = list[index].Trim();
+            if (string.IsNullOrEmpty(ARealString))
+            {
+                Debug.WriteLine(start + "is Empty after Trim().");
+                retVal = "";
+            }
+            else
+            {
+                retVal = ARealString;
+            }
+            return retVal;
+        }
+
+        /// <summary>
+        /// Reads the text value of a field representing a value from an enjm... JOE write
+        /// </summary>
+        /// <param name="list"></param>
+        /// <param name="index"></param>
+        /// <param name="suppressException"></param>
+        /// <returns>-1 for Unassigned </returns>
+        private static int GetIndexOfSingleEnumValue(List<string> list, int index, int lineNumber, bool suppressException = false)
+        {
+            string start = "ParseNotation: Line " + lineNumber.ToString() + " Field " + index.ToString() + " - ";
+
+            int indexIntoArray = -1;
+            string trimmed = "";
+
+            // Translate all variants of null or empty or whitespace to "";
+            // but articulate what the actual value was here.
+            if (list[index] == null)
+            {
+                Debug.Assert(false, start + "value in list == null");
+                trimmed = "";
+            }
+            else if (string.IsNullOrWhiteSpace(list[index]))
+            {
+                Debug.Assert(false, start + "value in list == whitespace");
+                trimmed = "";
+            }
+            else if (string.IsNullOrEmpty(list[index]))
+            {
+                Debug.Assert(false, start + "value in list == not null but IsNullOrEmpty() fails.");
+                trimmed = "";
+            }
+            else
+            {
+                trimmed = list[index].Trim();
+            }
+
+            // Let each enum type decide how to handle empty value.
+
+            // Determine which static array we should look in to find the value stored in list[index].
+            // Once you determine which array to look in, return the index of that array where the field
+            // value was found. If not found, return -1.
+            switch (index)
+            {
+                case IndexOfFieldInSource.Type:
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.PlantType, trimmed, StringComparer.OrdinalIgnoreCase);
+                    if (indexIntoArray > -1)
+                    {
+                        return indexIntoArray;
+                    }
+                    else
+                    {
+                        indexIntoArray = -1;
+                    }
+                    break;
+
+                case IndexOfFieldInSource.CNPS_Drainage:
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.CNPS_Drainage, trimmed, StringComparer.OrdinalIgnoreCase);
+                    if (indexIntoArray > -1)
+                    {
+                        // that was a valid value for this field, so return the
+                        // index into array of valid values for this field.
+                        return indexIntoArray;
+                    }
+                    else
+                    {
+                        indexIntoArray = -1;
+                    }
+                    break;
+
+                case IndexOfFieldInSource.SunRequirement:
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
+                    if (indexIntoArray > -1)
+                    {
+                        return indexIntoArray;
+                    }
+                    else
+                    {
+                        indexIntoArray = -1;
+                    }
+                    break;
+
+                case IndexOfFieldInSource.WateringRequirements:
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
+                    if (indexIntoArray > -1)
+                    {
+                        return indexIntoArray;
+                    }
+                    else
+                    {
+                        indexIntoArray = -1;
+                    }
+                    break;
+
+                case IndexOfFieldInSource.AttractsBirds:
+                case IndexOfFieldInSource.AttractsButterflies:
+                case IndexOfFieldInSource.AttractsHummingbirds:
+                case IndexOfFieldInSource.AttractsNativeBees:
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
+                    if (indexIntoArray > -1)
+                    {
+                        return indexIntoArray;
+                    }
+                    else
+                    {
+                        indexIntoArray = -1;
+                    }
+                    break;
+
+                case IndexOfFieldInSource.Alameda:
+                case IndexOfFieldInSource.Contra_Costa:
+                case IndexOfFieldInSource.Marin:
+                case IndexOfFieldInSource.Napa:
+                case IndexOfFieldInSource.Santa_Clara:
+                case IndexOfFieldInSource.San_Francisco:
+                case IndexOfFieldInSource.San_Mateo:
+                case IndexOfFieldInSource.Solano:
+                case IndexOfFieldInSource.Sonoma:
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
+                    if (indexIntoArray > -1)
+                    {
+                        return indexIntoArray;
+                    }
+                    else
+                    {
+                        indexIntoArray = -1;
+                    }
+                    break;
+
+                case IndexOfFieldInSource.DocumentedAsGoodInContainers:
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.YesNoMaybe, trimmed, StringComparer.OrdinalIgnoreCase);
+                    if (indexIntoArray > -1)
+                    {
+                        return indexIntoArray;
+                    }
+                    else
+                    {
+                        indexIntoArray = -1;
+                    }
+                    break;
+
+                default:
+                    {
+                        Debug.WriteLine("Umappable value at Field Index: " + index.ToString());
+                        if (!suppressException) throw new InvalidOperationException("Umappable value at Field Index: " + index.ToString());
+                        return indexIntoArray; // should still be -1
+                    }
+            }
+            return indexIntoArray;
+        }
+
     }
 }
 
