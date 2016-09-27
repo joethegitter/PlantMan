@@ -1,126 +1,1031 @@
 ﻿using System;
+using System.IO;
+using System.Globalization;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
-using System.Threading.Tasks;
-using System.Reflection;
-using System.IO;
 using System.Diagnostics;
+using System.Reflection;
 
+using PlantMan;
 using PlantMan.Plants;
-using TextFileParsers;
-using JKCo.Utility;
 
-namespace PlantMan
+namespace CSVtoPlant
 {
-    public struct VersionNumber
-    {
-        public int Major;
-        public int Minor;
-        public int Build;
-        public int Revision;
 
-        public VersionNumber(int major, int minor, int build, int revision)
+    /// <summary>
+    /// 
+    /// </summary>
+    public class UnQuoter
+    {
+        static string Q = "\"";
+        static string Q2 = Q + Q;
+        static string Q3 = Q + Q + Q;
+        static string Q4 = Q + Q + Q + Q;
+
+        static string NullRep = "[{null}]";
+        static string OpenQuoteRep = "[{openQ}]";
+        static string CloseQuoteRep = "[{closeQ}]";
+        static string SingleQuoteRep = "[{singleQ}]";
+        static string DoubleQuoteRep = "[{doubleQ}]";
+        static string Nothing = "";
+
+        static string nl = Environment.NewLine;
+
+        /// <summary>
+        /// Parses a stream line by line, replacing quotation marks with corresponding
+        /// symbols which can be turned back in to quotation marks using ReQuote().
+        /// </summary>
+        /// <param name="stream"></param>
+        /// <param name="fieldDelimiter"></param>
+        /// <returns></returns>
+        /// <remarks>
+        /// Some Delimited Text File parsers choke on fields which contain 
+        /// quotation marks within the content of a field -ie, not as the first or last
+        /// character "wrapping" the content between the delimiters. This is because many
+        /// DTF emitters - like spreadsheets which emit comma separated files - place quotations
+        /// marks at either end of a field whose content contains the same char/str as the delimiter
+        /// (in this case, commas). This helps DTF parsers to distinguish between the delimiter char/str
+        /// and actual content. However, many DTF parsers are then confused by quotation marks which
+        /// appear within the content of a field, and they intrepret these as the start or end of a field.
+        /// To avoid this, use the UnQuote method to replace all non-wrapping quotation marks within 
+        /// a DTF with smart placeholders. After parsing the file into fields, you can call ReQuote on 
+        /// each field to replace the smart placeholders with the appropriate quotation mark representations.
+        /// Note that multiple quotation marks in a row within content will always be reduced to a single 
+        /// quotation mark.
+        /// </remarks>
+        static public string UnQuote(Stream stream, String fieldDelimiter = ",")
         {
-            Major = major;
-            Minor = minor;
-            Build = build;
-            Revision = revision;
+            string returnString = "";
+            string Delim = fieldDelimiter;
+
+            using (DelimitedFieldParser parser = new DelimitedFieldParser(stream))
+            {
+                while (!parser.EndOfFile)
+                {
+                    #region Documentation
+                    // Legend:
+                    // Nothing in these rules or instructions means apostrophe. Ever.
+                    // The letter Q by itself means a single instance of the quote glyph (")
+
+                    // Rules: 
+                    // JOE: this is wrong, remove it.
+                    // 1. we do not accept a final (post-parse) value of Quote+Quote. Final values of Q+Q are replaced with nothing.
+                    // 2. corresponding to Rule 1, four quotes -> two quotes = nothing.
+
+                    // Instructions:
+                    // 1. Use Parser to read line from stream. In that line:
+                    // 2. Replace any instance of four Qs in a row with nothing (delete); recursively.
+
+                    // Beginning and end of line:
+                    // 3. if first four chars in line are "QQQ," replace with OpenQuoteRepSymbol + SingleQuoteRepSymbol + CloseQuoteSymbol + Delim ( intended: [StartOfLine]", )
+                    // 4. if last four chars in line are ",QQQ" replace with Delim + OpenQuoteRepSymbol + SingleQuoteRepSymbol + CloseQuoteSymbol ( intended: ,"[EOL] )
+
+                    // JOE: this can't happen, it would end up being wrapped in quotes, so """"
+                    // 5. if first three chars in line are "QQ," replace with NullRepSymbol + Delim ( intended: [StartOfLine]"", )
+                    // 6. if last three chars in line are ",QQ" replace with Delim + NullRepSymbol ( intended: ,""[EOL] )
+
+                    // JOE: case seven will never be emitted. A single quote in a cell emits three quotes; same case as 3, in fact
+                    // 7. If first two chars in line are "Q," replace with SingleQuoteRepSymbol + Delim ( intended: [SOL]", )
+                    // JOE: wrong, same case as 4
+                    // 8. If last two chars in line are ",Q" replace with Delim + SingleQuoteRepSymbol ( intended: ,"[EOL] )
+
+                    // Open and Closing Quotes for entire field:
+                    // JOE, two quotes in a field will be wrapped to four quotes. 
+                    // 9. Replace any instance of ",QQ," with Delim + NullRepSymbol + Delim ( intended: null field )
+                    // JOE: remove case 10, cannot happen
+                    // 10. Replace every ",Q," with Delim + SingleQuoteRepSymbol + Delim ( intended: field = Q )
+                    // JOE: case 11 is actually valid and should not be changed.Occurs when cell contains [ Hello,"Dolly ]
+                    // 11. Replace every ",Q" with  Delim + OpenQuoteRepSymbol
+                    // 12. Replace every "Q," with CloseQuoteRepSymbol + Delim
+
+                    // Now we have no startLine or endLine cases, and no valid open or close quotes.
+                    // All other quotes are intended to be in text of field. Any instance of QQ is an artifact
+                    // of the CSV translator (or the user being weird, and we don't care), and we want that QQ
+                    // to result in a Q in the end. Any single Q remaining after we replace QQ needs to be examined;
+                    // I can't think of a case where this should be valid.
+
+                    // 13. Replace any instance of two Q's in a row with DoubleQRepSymbol, recursively
+                    // 14. Replace any instance of single Q with SingleQRepSymbol (should not need to recurse).
+
+                    // Now we should have no Qs at all. However, we are about to parse the line again
+                    // with ParserTwo, and it needs to see single quotes around any field which contains
+                    // commas. So replace OpenQuoteRepSymbol and CloseQuoteRepSymbol with real quotes.
+                    // Open and Close quotes will not end up in the resulting TextFields.
+
+                    // 15. Replace any instance of OpenQuoteRepSymbol or CloseQuoteSymbol with Q
+
+                    #endregion Documentation
+
+                    // Prep
+                    string target = "";
+                    string repl = "";
+
+                    // 1. Use Parser object ParserPrime to read line from file. In that line:
+                    string wholeLine = parser.ReadLine();
+
+                    // if the entire line was empty, throw exception.
+                    // TODO: throw exception
+                    if (wholeLine == null)
+                    {
+                        throw new Exception("Entire line was null.");
+                    }
+
+                    // 2. Replace any instance of four Qs in a row with nothing (delete); recursively.
+                    target = Q4;
+                    while (wholeLine.Contains(target))
+                    {
+                        string modLine = wholeLine.Replace(target, Nothing);
+                    }
+
+                    // Beginning and end of line:
+                    // 3. if first four chars in line are "QQQ," replace with 
+                    // OpenQuoteRepSymbol + SingleQuoteRepSymbol + CloseQuoteSymbol + Delim ( intended: [StartOfLine]", )
+                    target = Q3 + Delim;
+                    repl = OpenQuoteRep + SingleQuoteRep + CloseQuoteRep + Delim;
+                    if (wholeLine.StartsWith(target))
+                    {
+                        string restOfLine = wholeLine.Substring(target.Length - 1);
+                        wholeLine = repl + restOfLine;
+                    }
+
+                    // 4. if last four chars in line are ",QQQ" replace with 
+                    // Delim + OpenQuoteRepSymbol + SingleQuoteRepSymbol + CloseQuoteSymbol ( intended: ,"[EOL] )
+                    target = Delim + Q3;
+                    repl = Delim + OpenQuoteRep + SingleQuoteRep + CloseQuoteRep;
+                    if (wholeLine.EndsWith(target))
+                    {
+                        string beginOfLine = wholeLine.Substring(0, wholeLine.Length - target.Length);
+                        wholeLine = beginOfLine + repl;
+                    }
+
+                    // 5. if first three chars in line are "QQ," replace with NullRepSymbol + Delim ( intended: [StartOfLine]"", )
+                    target = Q2 + Delim;
+                    repl = NullRep + Delim;
+                    if (wholeLine.StartsWith(target))
+                    {
+                        string restOfLine = wholeLine.Substring(target.Length - 1);
+                        wholeLine = repl + restOfLine;
+                    }
+
+                    // 6. if last three chars in line are ",QQ" replace with Delim + NullRepSymbol ( intended: ,""[EOL] )
+                    target = Delim + Q2;
+                    repl = Delim + NullRep;
+                    if (wholeLine.EndsWith(target))
+                    {
+                        string beginOfLine = wholeLine.Substring(0, wholeLine.Length - target.Length);
+                        wholeLine = beginOfLine + repl;
+                    }
+
+                    // 7. If first two chars in line are "Q," replace with SingleQuoteRepSymbol + Delim ( intended: [SOL]", )
+                    target = Q + Delim;
+                    repl = SingleQuoteRep + Delim;
+                    if (wholeLine.StartsWith(target))
+                    {
+                        string restOfLine = wholeLine.Substring(target.Length - 1);
+                        wholeLine = repl + restOfLine;
+                    }
+
+                    // 8. If last two chars in line are ",Q" replace with Delim + SingleQuoteRepSymbol ( intended: ,"[EOL] )
+                    target = Delim + Q;
+                    repl = Delim + SingleQuoteRep;
+                    if (wholeLine.EndsWith(target))
+                    {
+                        string beginOfLine = wholeLine.Substring(0, wholeLine.Length - target.Length);
+                        wholeLine = beginOfLine + repl;
+                    }
+
+                    // Open and Closing Quotes for entire field:
+                    // 9. Replace any instance of ",QQ," with Delim + NullRepSymbol + Delim ( intended: null field )
+                    target = Delim + Q2 + Delim;
+                    repl = Delim + NullRep + Delim;
+                    while (wholeLine.Contains(target))
+                    {
+                        wholeLine = wholeLine.Replace(target, repl);
+                    }
+
+                    // 10. Replace every ",Q," with Delim + SingleQuoteRepSymbol + Delim ( intended: field = Q )
+                    target = Delim + Q + Delim;
+                    repl = Delim + SingleQuoteRep + Delim;
+                    while (wholeLine.Contains(target))
+                    {
+                        wholeLine = wholeLine.Replace(target, repl);
+                    }
+
+                    // 11. Replace every ",Q" with  Delim + OpenQuoteRepSymbol
+                    target = Delim + Q;
+                    repl = Delim + OpenQuoteRep;
+
+                    while (wholeLine.Contains(target))
+                    {
+                        wholeLine = wholeLine.Replace(target, repl);
+                    }
+
+                    // 12. Replace every "Q," with CloseQuoteRepSymbol + Delim
+                    target = Q + Delim;
+                    repl = CloseQuoteRep + Delim;
+                    while (wholeLine.Contains(target))
+                    {
+                        wholeLine = wholeLine.Replace(target, repl);
+                    }
+
+                    // 13. Replace any instance of two Q's in a row with DoubleQRepSymbol, recursively
+                    target = Q2;
+                    repl = DoubleQuoteRep;
+                    while (wholeLine.Contains(target))
+                    {
+                        wholeLine = wholeLine.Replace(target, repl);
+                    }
+
+                    // 14. Replace any instance of single Q with SingleQRepSymbol (should not need to recurse).
+                    target = Q2;
+                    repl = SingleQuoteRep;
+                    while (wholeLine.Contains(target))
+                    {
+                        wholeLine = wholeLine.Replace(target, repl);
+                    }
+
+                    // Now we should have no Qs at all. However, the caller is about to parse
+                    // this data again, and it needs to see single quotes around any field which contains
+                    // commas. So replace any OpenQuoteRepSymbol and CloseQuoteRepSymbol with real quotes.
+                    // Open and Close quotes will not end up in the resulting TextFields.
+
+                    // 15. Replace any instance of OpenQuoteRepSymbol or CloseQuoteSymbol with Q
+                    target = OpenQuoteRep;
+                    repl = Q;
+                    wholeLine = wholeLine.Replace(target, repl);
+
+                    target = CloseQuoteRep;
+                    repl = Q;
+                    wholeLine = wholeLine.Replace(target, repl);
+
+                    // Now add the line to the string, and start over
+                    returnString += wholeLine + nl;
+
+                    //// DebugOut
+                    //System.Diagnostics.Debug.WriteLine("PreParse Line " + parser.LineNumber.ToString() +
+                    //    ", " + wholeLine);
+                }
+            }
+            return returnString;
         }
 
-        public override string ToString()
+        /// <summary>
+        /// Takes a "field" as parsed by UnQuote and replaces any tokens in it with originally intended content.
+        /// </summary>
+        /// <param name="UnQuotedString"></param>
+        /// <returns></returns>
+        static public string ReQuoteField(String UnQuotedString)
         {
-            return Major.ToString() + "." + Minor.ToString() + "." +
-                Build.ToString() + "." + Revision.ToString();
+            // Now in each TextField, we undo our changes. For each text field:
+            // 1. If the field contains ONLY the NullRepSymbol, return an Empty string.
+            // 2. Assert that a field does not contain both NullRep AND content.
+            // 3. If field contains ONLY the DoubleQRepSymbol, replace with Nothing (was ,"",  in the original)
+            // 4. Replace all DoubleQRepSymbols with a single quote.
+            // 5. Replace remaining SingleQRepSymbol with single quote.
+
+            // If we were sent null or empty or whitespace only string, just return it unmodified
+            if (String.IsNullOrEmpty(UnQuotedString) || String.IsNullOrWhiteSpace(UnQuotedString)) return UnQuotedString;
+
+            // 1. If the field contains ONLY the NullRepSymbol, return an Empty string.
+            if (UnQuotedString == NullRep) return String.Empty;
+
+            // 2. Assert that a field does not contain both NullRep AND content.
+            if (UnQuotedString.Contains(NullRep))
+            {
+                System.Diagnostics.Debug.Assert(false, "Field contains both NullReplacement symbol and content.");
+                // remove the nullrep anyway
+                UnQuotedString.Replace(NullRep, Nothing);
+            }
+
+            // 3. If field contains ONLY the DoubleQRepSymbol, replace with Nothing (was ,"",  in the original)
+            if (UnQuotedString == DoubleQuoteRep) return String.Empty;
+
+            // 4. Replace all DoubleQRepSymbols with a single quote.
+            UnQuotedString = UnQuotedString.Replace(DoubleQuoteRep, Q);
+
+            // 5. Replace remaining SingleQRepSymbol with single quote.
+            UnQuotedString = UnQuotedString.Replace(SingleQuoteRep, Q);
+
+            return UnQuotedString;
+        }
+
+        /// <summary>
+        /// Utility Method for creating a Stream from a String.
+        /// </summary>
+        /// <param name="s"></param>
+        /// <returns></returns>
+        static public Stream GenerateStreamFromString(string s)
+        {
+            MemoryStream stream = new MemoryStream();
+            StreamWriter writer = new StreamWriter(stream);
+            writer.Write(s);
+            writer.Flush();
+            stream.Position = 0;
+            return stream;
+        }
+
+
+    }
+
+    /// <summary>
+    /// Provides methods and properties for parsing structured text files.
+    /// </summary>
+    public abstract class StructuredTextParser : IDisposable
+    {
+        private TextReader reader;
+        private string[] commentTokens;
+        private long lineNumber;
+        private bool ownsReader;
+
+        /// <summary>
+        /// Initializes a new instance of StructuredTextParser for reading from
+        /// the specified stream.
+        /// </summary>
+        /// <param name="fs">The file stream to read from.</param>
+        protected StructuredTextParser(Stream fs)
+        {
+            this.reader = new StreamReader(fs);
+            this.ownsReader = true;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of StructuredTextParser for reading from
+        /// the specified text reader.
+        /// </summary>
+        /// <param name="reader">The reader used as source.</param>
+        protected StructuredTextParser(TextReader reader)
+        {
+            this.reader = reader;
+            this.ownsReader = false;
+        }
+
+        /// <summary>
+        /// Gets a value indicating wether the end of file has been reached.
+        /// </summary>
+        public bool EndOfFile
+        {
+            get
+            {
+                return (Peek() == -1);
+            }
+        }
+
+        /// <summary>
+        /// Indicates wether blank lines should be ignored.
+        /// 
+        /// The default value for this property is false.
+        /// </summary>
+        public bool IgnoreBlankLines { get; set; }
+
+        /// <summary>
+        /// Gets the current line number or -1 if there are no character left to read.
+        /// </summary>
+        public long LineNumber
+        {
+            get
+            {
+                return this.lineNumber;
+            }
+        }
+
+        /// <summary>
+        /// Indicates whether leading and trailing white space should be 
+        /// trimmed from field values.
+        /// 
+        /// The default value for this property is false.
+        /// </summary>
+        public bool TrimWhiteSpace { get; set; }
+
+        /// <summary>
+        /// Gets the comment tokens.
+        /// 
+        /// When a comment token is found at the begining of the line, it indicates
+        /// that the line is a comment and should be skipped.
+        /// </summary>
+        public string[] GetCommentTokens()
+        {
+            if (commentTokens == null)
+                return commentTokens;
+
+            return (string[])commentTokens.Clone();
+        }
+
+        /// <summary>
+        /// Sets the comment tokens.
+        /// 
+        /// When a comment token is found at the begining of the line, it indicates
+        /// that the line is a comment and should be skipped.
+        /// </summary>
+        /// <param name="commentTokens">Array of strings indicating the comment tokens.</param>
+        public void SetCommentTokens(params string[] commentTokens)
+        {
+            if (commentTokens == null)
+                this.commentTokens = null;
+
+            this.commentTokens = (string[])commentTokens.Clone();
+        }
+
+        /// <summary>
+        /// Closes the stream reader and file stream as they are no longer 
+        /// needed.
+        /// </summary>
+        public void Close()
+        {
+            this.lineNumber = -1;
+            if (reader != null)
+            {
+                reader.Dispose();
+            }
+
+            if (ownsReader && reader != null)
+                reader.Dispose();
+
+            reader = null;
+        }
+
+        /// <summary>
+        /// Reads the next character without advancing the file cursor.
+        /// </summary>
+        /// <returns>The code of the read character.</returns>
+        public int Peek()
+        {
+            int c = reader.Peek();
+
+            if (c == -1)
+                this.lineNumber = -1;
+
+            return c;
+        }
+
+        /// <summary>
+        /// Reads the next character and advances the file cursor.
+        /// </summary>
+        /// <returns>The code of the read character.</returns>
+        public int Read()
+        {
+            int c = reader.Read();
+
+            if (c == -1)
+                this.lineNumber = -1;
+
+            return c;
+        }
+
+        /// <summary>
+        /// When overriden by a derived class, reads the next text line, 
+        /// parse it and returns the resulting fields as an array of strings.
+        /// </summary>
+        /// <returns>All the fields of the current line as an array of strings.</returns>
+        public abstract TextFields ReadFields();
+
+        /// <summary>
+        /// Reads the next line without parsing for fields.
+        /// </summary>
+        /// <returns>The next whole line.</returns>
+        public string ReadLine()
+        {
+            if (EndOfFile == true)
+                return null;
+
+            string line = reader.ReadLine();
+            this.lineNumber += 1;
+
+            if (IgnoreLine(line))
+                return ReadLine();
+            // bug, you already trimmed white space in IgnoreLine test. Or did you?
+            if (TrimWhiteSpace == true)
+                return line.Trim();
+
+            return line.TrimEnd(new char[] { '\n', '\r' });
+        }
+
+        /// <summary>
+        /// Reads until the end of the file stream without parsing for fields.
+        /// </summary>
+        /// <returns>The whole contents from the current position as 
+        /// one string.
+        /// </returns>
+        public string ReadToEnd()
+        {
+            this.lineNumber = -1;
+            return reader.ReadToEnd();
+        }
+
+        /// <summary>
+        /// Skips the next line.
+        /// </summary>
+        public void SkipLine()
+        {
+            ReadLine();
+        }
+
+        /// <summary>
+        /// Skips the next given number of lines.
+        /// </summary>
+        /// <param name="lines">The number of lines to skip.</param>
+        public void SkipLines(int lines)
+        {
+            for (int i = 0; i < lines; i++)
+            {
+                if (EndOfFile)
+                    break;
+
+                SkipLine();
+            }
+        }
+
+        /// <summary>
+        /// Determines wether the given line should be ignored by the reader.
+        /// </summary>
+        /// <param name="line">The source text line.</param>
+        /// <returns>True if the line should be ignored or false otherwise.</returns>
+        protected virtual bool IgnoreLine(string line)
+        {
+            if (line == null)
+                return false;
+
+            string str = line.Trim();
+
+            if (IgnoreBlankLines && str.Length == 0)
+                return true;
+
+            if (commentTokens != null)
+            {
+                foreach (string commentToken in this.commentTokens)
+                {
+                    if (str.StartsWith(commentToken, StringComparison.Ordinal))
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Removes all leading and trailing white-space characters from each 
+        /// field of the given array.
+        /// </summary>
+        /// <param name="fields">The array of fields to be trimmed.</param>
+        /// <returns>A trimmed version of the array of fields.</returns>
+        protected static string[] TrimFields(string[] fields)
+        {
+            int elems = fields.Length;
+            string[] trimmedFields = new string[elems];
+
+            for (int i = 0; i < elems; i++)
+            {
+                trimmedFields[i] = fields[i].Trim();
+            }
+
+            return trimmedFields;
+        }
+
+        #region IDisposable implementation
+
+        private bool disposed;
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposed)
+                return;
+
+            if (disposing)
+            {
+                Close();
+            }
+
+            disposed = true;
+        }
+
+        ~StructuredTextParser()
+        {
+            Dispose(false);
+        }
+
+        #endregion
+
+    }
+
+    /// <summary>
+    /// Provides methods and properties for parsing delimited text files.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// using (DelimitedFieldParser parser = new DelimitedFieldParser("contacts.csv"))
+    /// {
+    ///     parser.SetDelimiters(',');
+    ///     
+    ///     while (!parser.EndOfFile)
+    ///     {
+    ///         TextFields fields = parser.ReadFields();
+    ///         // Process fields here using TextFields.GetXXX methods
+    ///     }
+    /// }
+    /// </code>
+    /// </example>
+    public class DelimitedFieldParser : StructuredTextParser
+    {
+        private enum DelimitedFieldParserState
+        {
+            InDelimiter,
+            InTextData,
+            InQuotedText,
+            InClosingQuotes
+        }
+
+        private char[] delimiters = { ',' };
+        private StringBuilder currentField;
+        private List<string> fields = new List<string>();
+        private DelimitedFieldParserState state = DelimitedFieldParserState.InDelimiter;
+        private CultureInfo culture;
+
+        ///// <summary>
+        ///// Initializes a new instance of DelimitedFieldParser for reading from
+        ///// the file specified by file name using the default field delimiter.
+        ///// </summary>
+        ///// <param name="fileName">The name of the file to read from.</param>
+        //public DelimitedFieldParser(string fileName)
+        //    : this(fileName, CultureInfo.InvariantCulture)
+        //{
+        //}
+
+        ///// <summary>
+        ///// Initializes a new instance of DelimitedFieldParser for reading from
+        ///// the file specified by file name using the default field delimiter.
+        ///// </summary>
+        ///// <param name="fileName">The name of the file to read from.</param>
+        ///// <param name="culture">The culture-specific information to use for parsing the fields.</param>
+        //public DelimitedFieldParser(string fileName, CultureInfo culture)
+        //    : base(fileName)
+        //{
+        //    this.culture = culture;
+        //}
+
+        /// <summary>
+        /// Initializes a new instance of DelimitedFieldParser for reading from
+        /// the specified stream using the default field delimiter.
+        /// </summary>
+        /// <param name="fs">The file stream to read from.</param>
+        public DelimitedFieldParser(Stream fs)
+            : this(fs, CultureInfo.InvariantCulture)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of DelimitedFieldParser for reading from
+        /// the specified stream using the default field delimiter.
+        /// </summary>
+        /// <param name="fs">The file stream to read from.</param>
+        /// <param name="culture">The culture-specific information to use for parsing the fields.</param>
+        public DelimitedFieldParser(Stream fs, CultureInfo culture)
+            : base(fs)
+        {
+            this.culture = culture;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of DelimitedFieldParser for reading from
+        /// the specified text reader using the default field delimiter.
+        /// </summary>
+        /// <param name="reader">The reader used as source.</param>
+        public DelimitedFieldParser(TextReader reader)
+            : this(reader, CultureInfo.InvariantCulture)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of DelimitedFieldParser for reading from
+        /// the specified text reader using the default field delimiter.
+        /// </summary>
+        /// <param name="reader">The reader used as source.</param>
+        /// <param name="culture">The culture-specific information to use for parsing the fields.</param>
+        public DelimitedFieldParser(TextReader reader, CultureInfo culture)
+            : base(reader)
+        {
+            this.culture = culture;
+        }
+
+        /// <summary>
+        /// If true, parser will assume one or more fields are enclosed in quotation marks.
+        /// Quotation marks appearing within the body of a field will cause problems.
+        /// If false, parser will choke on quotation marks. Serious limitation.
+        /// entire field is enclosed in quotes. Quotes within a field will break that field into multiple fields. 
+        /// a delimited file.
+        /// 
+        /// The default value for this property is false.
+        /// </summary>
+        public bool HasFieldsEnclosedInQuotes { get; set; }
+
+        /// <summary>
+        /// Indicates wether consecutive delimiters are treated as one.
+        /// 
+        /// The default value for this property is false.
+        /// </summary>
+        public bool SqueezeDelimiters { get; set; }
+
+        /// <summary>
+        /// Gets the delimiters for the parser.
+        /// </summary>
+        /// <returns></returns>
+        public char[] GetDelimiters()
+        {
+            return (char[])this.delimiters.Clone();
+        }
+
+        /// <summary>
+        /// Sets the field delimiters for the parser to the specified values.
+        /// </summary>
+        /// <param name="delimiters">The set of fields delimiters.</param>
+        /// <exception cref="ArgumentNullException">Raised if delimiters argument is null.</exception>
+        public void SetDelimiters(params char[] delimiters)
+        {
+            if (delimiters == null)
+                throw new ArgumentNullException("delimiters");
+
+            this.delimiters = (char[])delimiters.Clone();
+
+            ValidateDelimiters();
+        }
+
+        private void ValidateDelimiters()
+        {
+            foreach (char delimiter in delimiters)
+            {
+                if (delimiter == '\r' || delimiter == '\n')
+                    throw new ArgumentException("Invalid delimiter.");
+            }
+        }
+
+        /// <summary>
+        /// Reads the next line, parse it and returns the resulting fields 
+        /// as an array of strings.
+        /// </summary>
+        /// <returns>All the fields of the current line as an array of strings.</returns>
+        /// <exception cref="MalformedLineException">
+        /// Raised when a line cannot be parsed using the specified format.
+        /// </exception>
+        public override TextFields ReadFields()
+        {
+            string line = ReadLine();
+
+            string[] fields = ParseLine(line);
+
+            if (TrimWhiteSpace)
+                return new TextFields(TrimFields(fields), culture);
+
+            return new TextFields(fields, culture);
+        }
+
+        private string[] ParseLine(string line)
+        {
+            Initialize();
+
+            foreach (char c in line)
+                ParseChar(c);
+
+            EndOfLineEvent();
+
+            return ((string[])fields.ToArray());
+        }
+
+        private void Initialize()
+        {
+            NewField();
+            fields.Clear();
+            state = DelimitedFieldParserState.InDelimiter;
+        }
+
+        private void ParseChar(char c)
+        {
+            if (IsDelimiter(c))
+                DelimiterCharEvent(c);
+            else if (IsQuote(c))
+                QuoteCharEvent(c);
+            else
+                DefaultCharEvent(c);
+        }
+
+        private static bool IsQuote(char c)
+        {
+            return c == '"';
+        }
+
+        private bool IsDelimiter(char c)
+        {
+            foreach (char delimiter in delimiters)
+            {
+                if (c == delimiter)
+                    return true;
+            }
+            return false;
+        }
+
+        private void DelimiterCharEvent(char c)
+        {
+            switch (state)
+            {
+                case DelimitedFieldParserState.InDelimiter:
+                    if (!SqueezeDelimiters)
+                        AddField();
+                    break;
+
+                case DelimitedFieldParserState.InTextData:
+                    AddField();
+                    NewField();
+                    state = DelimitedFieldParserState.InDelimiter;
+                    break;
+
+                case DelimitedFieldParserState.InQuotedText:
+                    AppendChar(c);
+                    break;
+
+                case DelimitedFieldParserState.InClosingQuotes:
+                    AddField();
+                    NewField();
+                    state = DelimitedFieldParserState.InDelimiter;
+                    break;
+
+                default:
+                    throw new InvalidOperationException();
+            }
+        }
+
+        private void QuoteCharEvent(char c)
+        {
+            if (!HasFieldsEnclosedInQuotes)
+            {
+                DefaultCharEvent(c);
+                return;
+            }
+
+            switch (state)
+            {
+                case DelimitedFieldParserState.InDelimiter:
+                    state = DelimitedFieldParserState.InQuotedText;
+                    break;
+
+                case DelimitedFieldParserState.InTextData:
+                    throw new Exception("Unexpected quote found in line: " + LineNumber.ToString());
+
+                case DelimitedFieldParserState.InQuotedText:
+                    state = DelimitedFieldParserState.InClosingQuotes;
+                    break;
+
+                case DelimitedFieldParserState.InClosingQuotes:
+                    AddField();
+                    NewField();
+                    state = DelimitedFieldParserState.InQuotedText;
+                    break;
+
+                default:
+                    throw new InvalidOperationException();
+            }
+        }
+
+        private void DefaultCharEvent(char c)
+        {
+            switch (state)
+            {
+                case DelimitedFieldParserState.InDelimiter:
+                    AppendChar(c);
+                    state = DelimitedFieldParserState.InTextData;
+                    break;
+
+                case DelimitedFieldParserState.InTextData:
+                    AppendChar(c);
+                    break;
+
+                case DelimitedFieldParserState.InQuotedText:
+                    AppendChar(c);
+                    break;
+
+                case DelimitedFieldParserState.InClosingQuotes:
+                    throw new Exception("Expected delimiter not found in line: " + LineNumber.ToString());
+
+                default:
+                    throw new InvalidOperationException();
+            }
+        }
+
+        private void EndOfLineEvent()
+        {
+            switch (state)
+            {
+                case DelimitedFieldParserState.InDelimiter:
+                    AddField();
+                    break;
+
+                case DelimitedFieldParserState.InTextData:
+                    AddField();
+                    break;
+
+                case DelimitedFieldParserState.InQuotedText:
+                    throw new Exception("Closing quote was expected in line: " + LineNumber.ToString());
+
+                case DelimitedFieldParserState.InClosingQuotes:
+                    AddField();
+                    NewField();
+                    break;
+
+                default:
+                    throw new InvalidOperationException();
+            }
+        }
+
+        private void AppendChar(char c)
+        {
+            currentField.Append(c);
+        }
+
+        private void AddField()
+        {
+            fields.Add(currentField.ToString());
+        }
+
+        private void NewField()
+        {
+            currentField = new StringBuilder();
         }
     }
 
-    public class Utils
+    /// <summary>
+    /// Provides access to the field values within each line for a StructuredTextParser
+    /// or a derivative class.
+    /// </summary>
+    public class TextFields
     {
-        /// <summary>
-        /// If necessary, downloads the new data.
-        /// </summary>
-        /// <param name="local"></param>
-        /// <returns>Returns a string containing the path and name of the resource containing the data.</returns>
-        async public static Task<string> DownloadNewUpdateIfWeNeedIt(VersionNumber localVN, string currentResource)
-        {
-            // "async" in our method signature above means that this method may "await"
-            // other async methods that it calls, so callers to this method
-            // should "await" this method when they call it, if they want to remain 
-            // async themselves. The return type for async methods is Task<return type>.
-
-            // "await" here below causes the method to pause and wait for the return of the API.
-            // All code in the caller chain up to here also pauses. However, the rest of
-            // the code in our app is not paused, and our app remains responsive
-            // to events and user interactions.
-            Tuple<bool, VersionNumber> myTupe = await APIQueryGetNewVersion("dataMain", localVN);
-            bool fNeedNew = myTupe.Item1;
-            VersionNumber targetVN = myTupe.Item2;
-            string theNewData = "";
-            string whereIsIt = "";
-
-            if (myTupe.Item1 == true)  // server told us to get the new version specified in targetV
-            {
-                // and we "await" again, since web calls can be slow.
-                theNewData = await APIDownloadDataMain(myTupe.Item2);
-
-                // Now store the new data somewhere, and return to caller where to find it.
-                // For mocking purposes, this project already has it stored.
-                // Fake putting theNewData in a resource, and just return the path to that resource.
-                whereIsIt = "CSVData.PlantsFixed.csv";
-            }
-            else
-            {
-                whereIsIt = currentResource;
-            }
-
-            return whereIsIt;
-        }
-
-        // In reality, any method starting with "API" here would really be an API hosted on
-        // our server. We just mock them here, for educational and testing purposes.
+        private string[] items;
+        private CultureInfo culture;
 
         /// <summary>
-        /// Returns a string containing the newly downloaded data.
+        /// Initializes a new instance of TextFields from an array of strings.
         /// </summary>
-        /// <param name="versionNumber">The version number of the data file to get.</param>
-        /// <returns>String containing the resource name and path from which to get the CSV file.</returns>
-        async private static Task<string> APIDownloadDataMain(VersionNumber versionNumber)
+        /// <param name="values">The array of string containing the values for each field.</param>
+        public TextFields(string[] values)
+            : this(values, CultureInfo.InvariantCulture)
         {
-            // remember, we're mocking this.
-            return "There's no data here, buddy. Fake it.";
         }
 
         /// <summary>
-        /// Queries server to see if server wants us to get new version of an object.
+        /// Initializes a new instance of TextFields from an array of strings indicating
+        /// the culture-specific information to use for parsing the fields.
         /// </summary>
-        /// <param name="whichVersionableThing">Which object are we talking about.</param>
-        /// <param name="localV">The version number of the data the client already has access to.</param>
-        /// <param name="targetV">Parameter where we want the server to put the newer version number.</param>
-        /// <returns></returns>
-        async private static Task<Tuple<bool, VersionNumber>> APIQueryGetNewVersion(string whichVersionableThing, object localV)
+        /// <param name="values">The array of string containing the values for each field.</param>
+        /// <param name="cultureInfo">The culture-specific information to use for parsing the fields.</param>
+        public TextFields(string[] values, CultureInfo cultureInfo)
         {
-            // Why the Tuple?
-            // In an ordinary method where we wanted to indicate both bool and some data,
-            // we would use an "out" or "ref" parameter modifier, so we could send the
-            // data back in a passed variable. However, this is not alllowed for async methods.
-            // So, we Tuple it.
-
-            // On the server, compare the "localV" version number, decide if client
-            // needs a newer version of the data. If so, return true, and give them
-            // version number they should request.
-
-            // create a tuple<bool, VersionNumber> and put the return values in them.
-            bool retBool = true;
-            VersionNumber retVN = new VersionNumber(1, 2, 3, 4);
-
-            Tuple<bool, VersionNumber> retTuple = new Tuple<bool, VersionNumber>(retBool, retVN);
-            return retTuple;
+            this.items = (string[])values.Clone();
+            this.culture = cultureInfo;
         }
 
-        
+        /// <summary>
+        /// Gets the number of fields in the current record.
+        /// </summary>
+        public int Count
+        {
+            get { return items.Length; }
+        }
 
+        /// <summary>
+        /// Gets an array containing each field as read from the input stream.
+        /// </summary>
+        /// <returns>An array of strings.</returns>
+        public string[] ToArray()
+        {
+            return (string[])items.Clone();
+        }
+
+        /// <summary>
+        /// Converts the value of this instance to its equivalent string representation
+        /// using the underlying culture-specific list separator to delimit each field.
+        /// </summary>
+        /// <returns>The string representation of this instance.</returns>
+        public override string ToString()
+        {
+            return ToString(culture.TextInfo.ListSeparator);
+        }
+
+        /// <summary>
+        /// Converts the value of this instance to its equivalent string representation
+        /// using the supplied separator to delimit each field.
+        /// </summary>
+        /// <param name="separator"></param>
+        /// <returns>The string representation of this instance.</returns>
+        public string ToString(string separator)
+        {
+            return string.Join(separator, items);
+        }
+    }
+
+    public class Mapper
+    {
         public static Dictionary<string, Plant> ParseDataIntoStore(object currentApp, string resourceName, bool dataHasHeaderLine = false)
         {
             // create a dictionary of KeyValuePairs, where KVP.Key is name of plant,
@@ -149,7 +1054,7 @@ namespace PlantMan
                     throw new ArgumentException("Could not open a stream from that resource. Misspelled?");
                 }
 
-                theUnQuotedVersion = JKCo.Utility.UnQuoter.UnQuote(streamCSV);
+                theUnQuotedVersion = UnQuoter.UnQuote(streamCSV);
             }
 
             using (Stream stream = UnQuoter.GenerateStreamFromString(theUnQuotedVersion))
@@ -175,10 +1080,11 @@ namespace PlantMan
 
                         // convert TextFields into List of strings
                         string[] tfa = tfs.ToArray();
-                        List<string> temp = tfa.ToList<string>();
+                        List<string> temp = new List<string>(tfa);
+                        //List<string> temp = tfa.ToList<string>();
 
                         // Put the quotes back into each field
-                        List<string> theFields = new List<string>();
+                        List <string> theFields = new List<string>();
                         foreach (string s in temp)
                         {
                             string y = UnQuoter.ReQuoteField(s);
@@ -1079,3 +1985,4 @@ namespace PlantMan
         }
     }
 }
+
