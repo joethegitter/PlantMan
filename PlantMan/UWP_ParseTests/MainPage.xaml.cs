@@ -45,19 +45,9 @@ namespace UWP_ParseTests
             PlantImporter pi = new PlantImporter(myAss, myPath);
             pi.DebugOutput = PlantImporter.TDO.None;
             List<Plant> myPlants = pi.GetPlantList();
-            string all = "";
-            //foreach (string s in pi.ParseErrorList)
-            //{
-            //    all += s + Environment.NewLine;
-            //}
 
-            textBox.Text = "";
-            foreach (Plant p in myPlants)
-            {
-                
-                // all += p.Name + Environment.NewLine + p.CNPS_Drainage.ToString() + Environment.NewLine;
-            }
-            textBox.Text = all;
+            // at this point, if you know how to make the UI work
+            // just loop through the plants, spitting out Name + ScientificName
         }
     }
 }
