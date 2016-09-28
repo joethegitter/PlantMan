@@ -150,7 +150,7 @@ namespace PlantMan.Plants
             }
         }
 
-        //// SunRequirement
+        //// SunRequirements
         //public List<SunType> SunRequirements
         //{
         //    get

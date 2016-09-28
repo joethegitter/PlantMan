@@ -236,7 +236,7 @@ namespace PlantMan.Plants
         public const int MinWidth = 6;
         public const int MaxWidth = 7;
         public const int FloweringMonths = 8;
-        public const int SunRequirement = 9;
+        public const int SunRequirements = 9;
         public const int WateringRequirements = 10;
         public const int MinRainfallInches = 11;
         public const int MaxRainfallInches = 12;
