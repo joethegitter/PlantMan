@@ -8,8 +8,8 @@
     mc:Ignorable="d">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <TextBlock x:Name="textBlock" TextWrapping="Wrap" Text="" Margin="10,115,10,10" d:LayoutOverrides="LeftPosition, RightPosition, TopPosition, BottomPosition"/>
-        <Button x:Name="button" Content="Parse" VerticalAlignment="Top" HorizontalAlignment="Stretch" Margin="148,47,147,0" d:LayoutOverrides="Width, LeftPosition, RightPosition" Click="button_Click"/>
+        <Button x:Name="button" Content="Parse" VerticalAlignment="Top" HorizontalAlignment="Stretch" Margin="148,32,147,0" Click="button_Click"/>
+        <TextBox x:Name="textBox" HorizontalAlignment="Stretch"  Margin="0,69,0,0" TextWrapping="NoWrap"  Text="" VerticalAlignment="Stretch"  ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
 
     </Grid>
 </Page>

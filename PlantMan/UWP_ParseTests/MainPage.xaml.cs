@@ -31,12 +31,6 @@ namespace UWP_ParseTests
         {
             this.InitializeComponent();
 
-            // Because I have no idea how to manipulate page objects
-            // in UWP, we're going to treat this pretty much as a 
-            // console project. I'll call my code here, while still
-            // in the page constructor.
-
-
         }
 
         private void button_Click(object sender, RoutedEventArgs e)
@@ -57,13 +51,13 @@ namespace UWP_ParseTests
             //    all += s + Environment.NewLine;
             //}
 
-            textBlock.Text = "";
+            textBox.Text = "";
             foreach (Plant p in myPlants)
             {
                 
-                all += p.Name + Environment.NewLine + p.CNPS_Drainage.ToString() + Environment.NewLine;
+                // all += p.Name + Environment.NewLine + p.CNPS_Drainage.ToString() + Environment.NewLine;
             }
-            textBlock.Text = all;
+            textBox.Text = all;
         }
     }
 }
