@@ -8,7 +8,7 @@
     mc:Ignorable="d">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-        <TextBlock x:Name="textBlock" TextWrapping="Wrap" Text="TextBlock" Margin="10,115,10,10" d:LayoutOverrides="LeftPosition, RightPosition, TopPosition, BottomPosition"/>
+        <TextBlock x:Name="textBlock" TextWrapping="Wrap" Text="" Margin="10,115,10,10" d:LayoutOverrides="LeftPosition, RightPosition, TopPosition, BottomPosition"/>
         <Button x:Name="button" Content="Parse" VerticalAlignment="Top" HorizontalAlignment="Stretch" Margin="148,47,147,0" d:LayoutOverrides="Width, LeftPosition, RightPosition" Click="button_Click"/>
 
     </Grid>

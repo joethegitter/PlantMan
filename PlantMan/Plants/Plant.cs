@@ -47,7 +47,7 @@ namespace PlantMan.Plants
             // use the public property setters to set the public properties
             Type = PlantType.Unassigned;
             WateringRequirement = WateringType.Unassigned;
-            CNPS_Drainage = CNPS_Drainage.Unassigned;
+            CNPS_Drainage = CNPS_DrainageType.Unassigned;
             SunRequirements = SunType.Unassigned;
             FloweringMonths = FloweringMonth.Unassigned;
 
@@ -245,20 +245,20 @@ namespace PlantMan.Plants
         }
 
         // CNPS_Drainage
-        public CNPS_Drainage CNPS_Drainage
+        public CNPS_DrainageType CNPS_Drainage
         {
             get { return _CNPS_Drainage; }
 
             set
             {
-                if (Helpers.IsValidCNPS_DrainageType(value))
+                if (Helpers.IsValidCNPS_DrainageValue((int)value))
                 {
                     _CNPS_Drainage = value;
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("CNPS_Drainage.setter(): Not a valid enum value: " + value.ToString());
-                    throw new ArgumentException("Not a valid enum value: " + value.ToString(), "CNPS_Drainage");
+                    System.Diagnostics.Debug.WriteLine("_CNPS_Drainage.setter(): Not a valid enum value: " + value.ToString());
+                    throw new ArgumentException("Not a valid enum value: " + value.ToString(), "_CNPS_Drainage");
                 }
             }
         }
@@ -493,7 +493,7 @@ namespace PlantMan.Plants
         private FloweringMonth _floweringMonths;
         private SunType _sunRequirements;
         private WateringType _wateringRequirement;
-        private CNPS_Drainage _CNPS_Drainage;
+        private CNPS_DrainageType _CNPS_Drainage;
         private YesNoMaybe _attractsNativeBees;
         private YesNoMaybe _attractsButterflies;
         private YesNoMaybe _attractsBirds;

@@ -190,8 +190,6 @@ namespace CSVtoPlant
             return d;
         }
 
-
-
         /// <summary>
         /// Assembly in which resource can be found.
         /// </summary>
@@ -234,7 +232,7 @@ namespace CSVtoPlant
                 }
 
                 string[] mrn = _resourceAssembly.GetManifestResourceNames();
-                if (!mrn.Contains<string>(_pathToResource))
+                if (!mrn.Contains<string>(value))
                 {
                     throw new Exception("This resource does not appear to be in the specified ResourceAssembly: " + value);
                 }
@@ -296,6 +294,8 @@ namespace CSVtoPlant
 
         #endregion Import/Parse Tracking Data
 
+        #region DebugOutput
+
         /// <summary>
         /// Allows creator of PlantImporter object to control the debug output.
         /// </summary>
@@ -305,13 +305,15 @@ namespace CSVtoPlant
         public enum TDO
         {
             None = 0, RawData = 1, UnQuotedData = 2, RawLine = 4, UnQuotedLine = 8,
-            Fields = 4
+            Fields = 4, EveryDamnThing = (RawData | UnQuotedData | RawLine | UnQuotedLine | Fields)
         }
 
         private bool Use(TDO x)
         {
             return DebugOutput.HasFlag(x);
         }
+
+        #endregion Debug Output
 
         #endregion Public Properties and Methods
 
@@ -354,9 +356,9 @@ namespace CSVtoPlant
                 {
                     if (streamCSV == null) throw new Exception("Stream from specified resource is null.");
 
-                    Debug.WriteLineIf(Use(TDO.UnQuotedData), "CSV Data after UnQuoting:" + Environment.NewLine + theCSVData);
                     // replace quotes in data with symbols
                     retString = UnQuoter.UnQuote(streamCSV);
+                    Debug.WriteLineIf(Use(TDO.UnQuotedData), "CSV Data after UnQuoting:" + Environment.NewLine + retString);
                 }
             }
             return retString;
@@ -382,14 +384,16 @@ namespace CSVtoPlant
                     parser.SetDelimiters(new char[] { ',' });
                     parser.HasFieldsEnclosedInQuotes = true;
                     int lineCounter = 0;
-                    List<string> theFields = new List<string>();
                     string lineStart = "";
 
                     while (!parser.EndOfFile)
                     {
+                        List<string> theFields = new List<string>();
+
                         // Read the line into "TextFields"
                         TextFields tfs = parser.ReadFields();
                         lineCounter++;
+                        
                         lineStart = "Line " + lineCounter.ToString() + " ";
                         Debug.WriteLineIf(Use(TDO.UnQuotedLine), "(UnQuoted fields): " + tfs.ToString());
 
@@ -407,17 +411,17 @@ namespace CSVtoPlant
                             Debug.WriteLineIf(Use(TDO.Fields),lineStart + "(Requoted field): " + requotedField);
                             theFields.Add(requotedField);
                         }
+                        retList.Add(theFields);
                     }
-                    retList.Add(theFields);
                 }   // using delimited object
             }   // using stream
             return retList;
         }   // GetSetOfFieldValues
 
         /// <summary>
-        /// 
+        /// Gets a list of Plants using the results of GetSetOfFieldValues().
         /// </summary>
-        /// <param name="SetOfFieldValues"></param>
+        /// <param name="SetOfFieldValues">Field Values returned by GetSetOfFieldValues()</param>
         /// <returns></returns>
         private List<Plant> GetListOfPlantsFromSetofFieldValues(List<List<string>> SetOfFieldValues)
         {
@@ -425,11 +429,17 @@ namespace CSVtoPlant
 
             int lineCounter = 0;
 
-            foreach (List<string> Line in SetOfFieldValues)
+            foreach (List<string> ListOfFields in SetOfFieldValues)
             {
                 lineCounter++;
-                List<string> parserErrors = new List<string>();
-                Plant pl = Mapper.PlantFromListOfFields(Line, lineCounter, out parserErrors);
+                List<string> tempParserErrors = new List<string>();
+
+                Plant pl = Mapper.PlantFromListOfFields(ListOfFields, lineCounter, out tempParserErrors);
+
+                foreach (string s in tempParserErrors)
+                {
+                    this.ParseErrorList.Add(s);
+                }
 
                 if (pl == null)
                 {
@@ -1666,9 +1676,9 @@ namespace CSVtoPlant
             // If it finds null/empty/whitespace/not_a_number, it returns false, and decVal holds zero.
             Decimal decVal;
             Plant.DecimalLike adl = new Plant.DecimalLike();
-            string errors;
+            string GIOSEVerror;
 
-            if (GetDecimalValue(list, IndexOfFieldInSource.MaxHeight, out decVal, out errors))
+            if (GetDecimalValue(list, IndexOfFieldInSource.MaxHeight, out decVal, out GIOSEVerror))
             {
                 // succes was true, so field held a real value or UnivUnknown
                 // if field was UnivUnknown, decVal will contain decimal.MinValue
@@ -1684,13 +1694,13 @@ namespace CSVtoPlant
             else
             {
                 // success was false, so field held an empty/null/whitespace value
-                outie.Add(start + "MaxHeight - not a meaningful val, will become Unassigned. Error: " + errors);
+                outie.Add(start + "MaxHeight - not a meaningful val, will become Unassigned. Error: " + GIOSEVerror);
                 adl = new Plant.DecimalLike();
             }
             pl.MaxHeight = adl;
 
 
-            if (GetDecimalValue(list, IndexOfFieldInSource.MinHeight, out decVal, out errors))
+            if (GetDecimalValue(list, IndexOfFieldInSource.MinHeight, out decVal, out GIOSEVerror))
             {
                 // succes was true, so field held a real value or UnivUnknown
                 // if field was UnivUnknown, decVal will contain decimal.MinValue
@@ -1706,13 +1716,13 @@ namespace CSVtoPlant
             else
             {
                 // success was false, so field held an empty/null/whitespace value
-                outie.Add(start + "MinHeight - not a meaningful val, will become Unassigned. Error: " + errors);
+                outie.Add(start + "MinHeight - not a meaningful val, will become Unassigned. Error: " + GIOSEVerror);
                 adl = new Plant.DecimalLike();
             }
             pl.MinHeight = adl;
 
 
-            if (GetDecimalValue(list, IndexOfFieldInSource.MaxWidth, out decVal, out errors))
+            if (GetDecimalValue(list, IndexOfFieldInSource.MaxWidth, out decVal, out GIOSEVerror))
             {
                 // succes was true, so field held a real value or UnivUnknown
                 // if field was UnivUnknown, decVal will contain decimal.MinValue
@@ -1728,13 +1738,13 @@ namespace CSVtoPlant
             else
             {
                 // success was false, so field held an empty/null/whitespace value
-                outie.Add(start + "MaxWidth - not a meaningful val, will become Unassigned. Error: " + errors);
+                outie.Add(start + "MaxWidth - not a meaningful val, will become Unassigned. Error: " + GIOSEVerror);
                 adl = new Plant.DecimalLike();
             }
             pl.MaxWidth = adl;
 
 
-            if (GetDecimalValue(list, IndexOfFieldInSource.MinWidth, out decVal, out errors))
+            if (GetDecimalValue(list, IndexOfFieldInSource.MinWidth, out decVal, out GIOSEVerror))
             {
                 // succes was true, so field held a real value or UnivUnknown
                 // if field was UnivUnknown, decVal will contain decimal.MinValue
@@ -1750,13 +1760,13 @@ namespace CSVtoPlant
             else
             {
                 // success was false, so field held an empty/null/whitespace value
-                outie.Add(start + "MinWidth - not a meaningful val, will become Unassigned. Error: " + errors);
+                outie.Add(start + "MinWidth - not a meaningful val, will become Unassigned. Error: " + GIOSEVerror);
                 adl = new Plant.DecimalLike();
             }
             pl.MinWidth = adl;
 
 
-            if (GetDecimalValue(list, IndexOfFieldInSource.MaxRainfallInches, out decVal, out errors))
+            if (GetDecimalValue(list, IndexOfFieldInSource.MaxRainfallInches, out decVal, out GIOSEVerror))
             {
                 // succes was true, so field held a real value or UnivUnknown
                 // if field was UnivUnknown, decVal will contain decimal.MinValue
@@ -1772,13 +1782,13 @@ namespace CSVtoPlant
             else
             {
                 // success was false, so field held an empty/null/whitespace value
-                outie.Add(start + "MaxRainfallInches - not a meaningful val, will become Unassigned. Error: " + errors);
+                outie.Add(start + "MaxRainfallInches - not a meaningful val, will become Unassigned. Error: " + GIOSEVerror);
                 adl = new Plant.DecimalLike();
             }
             pl.MaxRainfallInches = adl;
 
 
-            if (GetDecimalValue(list, IndexOfFieldInSource.MaxSoilpH, out decVal, out errors))
+            if (GetDecimalValue(list, IndexOfFieldInSource.MaxSoilpH, out decVal, out GIOSEVerror))
             {
                 // succes was true, so field held a real value or UnivUnknown
                 // if field was UnivUnknown, decVal will contain decimal.MinValue
@@ -1794,13 +1804,13 @@ namespace CSVtoPlant
             else
             {
                 // success was false, so field held an empty/null/whitespace value
-                outie.Add(start + "MaxSoilpH - not a meaningful val, will become Unassigned. Error: " + errors);
+                outie.Add(start + "MaxSoilpH - not a meaningful val, will become Unassigned. Error: " + GIOSEVerror);
                 adl = new Plant.DecimalLike();
             }
             pl.MaxSoilpH = adl;
 
 
-            if (GetDecimalValue(list, IndexOfFieldInSource.MinSoilpH, out decVal, out errors))
+            if (GetDecimalValue(list, IndexOfFieldInSource.MinSoilpH, out decVal, out GIOSEVerror))
             {
                 // succes was true, so field held a real value or UnivUnknown
                 // if field was UnivUnknown, decVal will contain decimal.MinValue
@@ -1816,13 +1826,13 @@ namespace CSVtoPlant
             else
             {
                 // success was false, so field held an empty/null/whitespace value
-                outie.Add(start + "MinSoilpH - not a meaningful val, will become Unassigned. Error: " + errors);
+                outie.Add(start + "MinSoilpH - not a meaningful val, will become Unassigned. Error: " + GIOSEVerror);
                 adl = new Plant.DecimalLike();
             }
             pl.MinSoilpH = adl;
 
 
-            if (GetDecimalValue(list, IndexOfFieldInSource.MinRainfallInches, out decVal, out errors))
+            if (GetDecimalValue(list, IndexOfFieldInSource.MinRainfallInches, out decVal, out GIOSEVerror))
             {
                 // succes was true, so field held a real value or UnivUnknown
                 // if field was UnivUnknown, decVal will contain decimal.MinValue
@@ -1838,13 +1848,13 @@ namespace CSVtoPlant
             else
             {
                 // success was false, so field held an empty/null/whitespace value
-                outie.Add(start + "MinRainfallInches - not a meaningful val, will become Unassigned. Error: " + errors);
+                outie.Add(start + "MinRainfallInches - not a meaningful val, will become Unassigned. Error: " + GIOSEVerror);
                 adl = new Plant.DecimalLike();
             }
             pl.MinRainfallInches = adl;
 
 
-            if (GetDecimalValue(list, IndexOfFieldInSource.MinWinterTempF, out decVal, out errors))
+            if (GetDecimalValue(list, IndexOfFieldInSource.MinWinterTempF, out decVal, out GIOSEVerror))
             {
                 // succes was true, so field held a real value or UnivUnknown
                 // if field was UnivUnknown, decVal will contain decimal.MinValue
@@ -1860,7 +1870,7 @@ namespace CSVtoPlant
             else
             {
                 // success was false, so field held an empty/null/whitespace value
-                outie.Add(start + "MinRainfallInches - not a meaningful val, will become Unassigned. Error: " + errors);
+                outie.Add(start + "MinRainfallInches - not a meaningful val, will become Unassigned. Error: " + GIOSEVerror);
                 adl = new Plant.DecimalLike();
             }
             pl.MinWinterTempF = adl;
@@ -1880,10 +1890,11 @@ namespace CSVtoPlant
 
             // Type
             PlantType tt = PlantType.Unassigned;
-            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.Type, out errors);
+            GIOSEVerror = "";
+            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.Type, out GIOSEVerror);
             if (indexOfCanonicalValue == -1) { indexOfCanonicalValue = 0; }  // HACK: we're assuming unassigned = 0
             canonicalVal = ValueOfFieldInSource.PlantType[indexOfCanonicalValue];
-            if (string.Equals(canonicalVal, "Annual_herb", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(canonicalVal, "Annual herb", StringComparison.OrdinalIgnoreCase))
             {
                 tt = PlantType.Annual_herb;
             }
@@ -1899,7 +1910,7 @@ namespace CSVtoPlant
             {
                 tt = PlantType.Grass;
             }
-            else if (string.Equals(canonicalVal, "Perennial_herb", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(canonicalVal, "Perennial herb", StringComparison.OrdinalIgnoreCase))
             {
                 tt = PlantType.Perennial_herb;
             }
@@ -1926,16 +1937,17 @@ namespace CSVtoPlant
             else
             {
                 outie.Add(start + "PlantType - " + 
-                    "GetIndexOfSingleEnumValue returned true but value not recognized; errors: " + errors);
+                    "GetIndexOfSingleEnumValue returned true but value not recognized; GIOSEVerror: " + GIOSEVerror);
             }
             pl.Type = tt;
 
             // WateringRequirement
             WateringType wt = WateringType.Unassigned;
-            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.WateringRequirements, out errors);
+            GIOSEVerror = "";
+            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.WateringRequirements, out GIOSEVerror);
             if (indexOfCanonicalValue == -1) { indexOfCanonicalValue = 0; }  // HACK: we're assuming unassigned = 0
             canonicalVal = ValueOfFieldInSource.WateringType[indexOfCanonicalValue];
-            if (string.Equals(canonicalVal, "Drought_tolerant", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(canonicalVal, "Drought tolerant", StringComparison.OrdinalIgnoreCase))
             {
                 wt = WateringType.Drought_tolerant;
             }
@@ -1970,55 +1982,16 @@ namespace CSVtoPlant
             else
             {
                 outie.Add(start + "WateringRequirement - " +
-                    "GetIndexOfSingleEnumValue returned true but value not recognized; errors: " + errors);
+                    "GetIndexOfSingleEnumValue returned true but value not recognized; GIOSEVerror: " + GIOSEVerror);
             }
             pl.WateringRequirement = wt;
-
-            // CNPS_Drainage
-            CNPS_Drainage ct = CNPS_Drainage.Unassigned;
-            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.CNPS_Drainage, out errors);
-            if (indexOfCanonicalValue == -1) { indexOfCanonicalValue = 0; }  // HACK: we're assuming unassigned = 0
-            canonicalVal = ValueOfFieldInSource.CNPS_Drainage[indexOfCanonicalValue];
-            if (string.Equals(canonicalVal, "Fast", StringComparison.OrdinalIgnoreCase))
-            {
-                ct = CNPS_Drainage.Fast;
-            }
-            else if (string.Equals(canonicalVal, "Medium", StringComparison.OrdinalIgnoreCase))
-            {
-                ct = CNPS_Drainage.Medium;
-            }
-            else if (string.Equals(canonicalVal, "Slow", StringComparison.OrdinalIgnoreCase))
-            {
-                ct = CNPS_Drainage.Slow;
-            }
-            else if (string.Equals(canonicalVal, "Standing", StringComparison.OrdinalIgnoreCase))
-            {
-                ct = CNPS_Drainage.Standing;
-            }
-            else if (string.Equals(canonicalVal, "Unassigned", StringComparison.OrdinalIgnoreCase))
-            {
-                ct = CNPS_Drainage.Unassigned;
-            }
-            else if (string.Equals(canonicalVal, "Unknown", StringComparison.OrdinalIgnoreCase))
-            {
-                ct = CNPS_Drainage.Unknown;
-            }
-            else if (string.Equals(canonicalVal, "NotApplicable", StringComparison.OrdinalIgnoreCase))
-            {
-                ct = CNPS_Drainage.NotApplicable;
-            }
-            else
-            {
-                outie.Add(start + "CNPS_Drainage - " +
-                    "GetIndexOfSingleEnumValue returned true but value not recognized; errors: " + errors);
-            }
-            pl.CNPS_Drainage = ct;
 
             // Yes / No
 
             // AttractsBirds
             YesNoMaybe yn = YesNoMaybe.Unassigned;
-            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.AttractsBirds, out errors);
+            GIOSEVerror = "";
+            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.AttractsBirds, out GIOSEVerror);
             if (indexOfCanonicalValue == -1) { indexOfCanonicalValue = 0; }  // HACK: we're assuming unassigned = 0
             canonicalVal = ValueOfFieldInSource.YesNoMaybe[indexOfCanonicalValue];
             if (string.Equals(canonicalVal, "No", StringComparison.OrdinalIgnoreCase))
@@ -2044,13 +2017,14 @@ namespace CSVtoPlant
             else
             {
                 outie.Add(start + "AttractsBirds - " +
-                    "GetIndexOfSingleEnumValue returned true but value not recognized; errors: " + errors);
+                    "GetIndexOfSingleEnumValue returned true but value not recognized; GIOSEVerror: " + GIOSEVerror);
             }
             pl.AttractsBirds = yn;
 
             // AttractsButterflies
             yn = YesNoMaybe.Unassigned;
-            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.AttractsButterflies, out errors);
+            GIOSEVerror = "";
+            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.AttractsButterflies, out GIOSEVerror);
             if (indexOfCanonicalValue == -1) { indexOfCanonicalValue = 0; }  // HACK: we're assuming unassigned = 0
             canonicalVal = ValueOfFieldInSource.YesNoMaybe[indexOfCanonicalValue];
             if (string.Equals(canonicalVal, "No", StringComparison.OrdinalIgnoreCase))
@@ -2076,14 +2050,15 @@ namespace CSVtoPlant
             else
             {
                 outie.Add(start + "AttractsButterflies - " +
-                    "GetIndexOfSingleEnumValue returned true but value not recognized; errors: " + errors);
+                    "GetIndexOfSingleEnumValue returned true but value not recognized; GIOSEVerror: " + GIOSEVerror);
             }
             pl.AttractsButterflies = yn;
 
 
             // AttractsHummingbirds
             yn = YesNoMaybe.Unassigned;
-            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.AttractsHummingbirds, out errors);
+            GIOSEVerror = "";
+            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.AttractsHummingbirds, out GIOSEVerror);
             if (indexOfCanonicalValue == -1) { indexOfCanonicalValue = 0; }  // HACK: we're assuming unassigned = 0
             canonicalVal = ValueOfFieldInSource.YesNoMaybe[indexOfCanonicalValue];
             if (string.Equals(canonicalVal, "No", StringComparison.OrdinalIgnoreCase))
@@ -2109,13 +2084,14 @@ namespace CSVtoPlant
             else
             {
                 outie.Add(start + "AttractsHummingbirds - " +
-                    "GetIndexOfSingleEnumValue returned true but value not recognized; errors: " + errors);
+                    "GetIndexOfSingleEnumValue returned true but value not recognized; GIOSEVerror: " + GIOSEVerror);
             }
             pl.AttractsHummingbirds = yn;
 
             // AttractsNativeBees
             yn = YesNoMaybe.Unassigned;
-            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.AttractsNativeBees, out errors);
+            GIOSEVerror = "";
+            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.AttractsNativeBees, out GIOSEVerror);
             if (indexOfCanonicalValue == -1) { indexOfCanonicalValue = 0; }  // HACK: we're assuming unassigned = 0
             canonicalVal = ValueOfFieldInSource.YesNoMaybe[indexOfCanonicalValue];
             if (string.Equals(canonicalVal, "No", StringComparison.OrdinalIgnoreCase))
@@ -2141,13 +2117,14 @@ namespace CSVtoPlant
             else
             {
                 outie.Add(start + "AttractsNativeBees - " +
-                    "GetIndexOfSingleEnumValue returned true but value not recognized; errors: " + errors);
+                    "GetIndexOfSingleEnumValue returned true but value not recognized; GIOSEVerror: " + GIOSEVerror);
             }
             pl.AttractsNativeBees = yn;
 
             // DocumentedAsGoodInContainers
             yn = YesNoMaybe.Unassigned;
-            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.DocumentedAsGoodInContainers, out errors);
+            GIOSEVerror = "";
+            indexOfCanonicalValue = GetIndexOfSingleEnumValue(list, IndexOfFieldInSource.DocumentedAsGoodInContainers, out GIOSEVerror);
             if (indexOfCanonicalValue == -1) { indexOfCanonicalValue = 0; }  // HACK: we're assuming unassigned = 0
             canonicalVal = ValueOfFieldInSource.YesNoMaybe[indexOfCanonicalValue];
             if (string.Equals(canonicalVal, "No", StringComparison.OrdinalIgnoreCase))
@@ -2173,7 +2150,7 @@ namespace CSVtoPlant
             else
             {
                 outie.Add(start + "DocumentedAsGoodInContainers - " +
-                    "GetIndexOfSingleEnumValue returned true but value not recognized; errors: " + errors);
+                    "GetIndexOfSingleEnumValue returned true but value not recognized; GIOSEVerror: " + GIOSEVerror);
             }
             pl.DocumentedAsGoodInContainers = yn;
 
@@ -2210,11 +2187,9 @@ namespace CSVtoPlant
                     outie.Add(start + "Could not parse FloweringMonths string: " + strVal);
                 }
 
-                // SunTypes
-                // JOE
             }
 
-            // Flowering Months
+            // SunRequirements
             strVal = GetStringValue(list, IndexOfFieldInSource.SunRequirements, lineNumber);
             if (strVal == ValueOfFieldInSource.UnivUnassigned)
             {
@@ -2244,6 +2219,35 @@ namespace CSVtoPlant
                 // SunTypes
                 // JOE
             }
+
+            // CNPS_Drainage
+            strVal = GetStringValue(list, IndexOfFieldInSource.CNPS_Drainage, lineNumber);
+            if (strVal == ValueOfFieldInSource.UnivUnassigned)
+            {
+                pl.CNPS_Drainage = CNPS_DrainageType.Unassigned;
+            }
+            else if (strVal == ValueOfFieldInSource.UnivUnknown)
+            {
+                pl.CNPS_Drainage = CNPS_DrainageType.Unknown;
+            }
+            else if (strVal == ValueOfFieldInSource.UnivNotApplicable)
+            {
+                pl.CNPS_Drainage = CNPS_DrainageType.NotApplicable;
+            }
+            else
+            {
+                CNPS_DrainageType myVal;
+                if (Enum.TryParse<CNPS_DrainageType>(strVal, out myVal))
+                {
+                    pl.CNPS_Drainage = myVal;
+                }
+                else
+                {
+                    pl.CNPS_Drainage = CNPS_DrainageType.Unassigned;
+                    outie.Add(start + "Could not parse SunTypes string: " + strVal);
+                }
+            }
+
             #endregion Multiple-Value Enum Properties
             parserErrors = outie;
             return pl;
@@ -2508,19 +2512,19 @@ namespace CSVtoPlant
                     }
                     break;
 
-                case IndexOfFieldInSource.CNPS_Drainage:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.CNPS_Drainage, trimmed, StringComparer.OrdinalIgnoreCase);
-                    if (indexIntoArray > -1)
-                    {
-                        errors = outie;
-                        return indexIntoArray;
-                    }
-                    else
-                    {
-                        outie += start + "value in list == does not match any expected values; ";
-                        indexIntoArray = -1;
-                    }
-                    break;
+                //case IndexOfFieldInSource.CNPS_Drainage:
+                //    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.CNPS_Drainage, trimmed, StringComparer.OrdinalIgnoreCase);
+                //    if (indexIntoArray > -1)
+                //    {
+                //        errors = outie;
+                //        return indexIntoArray;
+                //    }
+                //    else
+                //    {
+                //        outie += start + "value in list == does not match any expected values; ";
+                //        indexIntoArray = -1;
+                //    }
+                //    break;
 
                 case IndexOfFieldInSource.SunRequirements:
                     indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
@@ -2537,7 +2541,7 @@ namespace CSVtoPlant
                     break;
 
                 case IndexOfFieldInSource.WateringRequirements:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.WateringType, trimmed, StringComparer.OrdinalIgnoreCase);
                     if (indexIntoArray > -1)
                     {
                         errors = outie;
@@ -2554,7 +2558,7 @@ namespace CSVtoPlant
                 case IndexOfFieldInSource.AttractsButterflies:
                 case IndexOfFieldInSource.AttractsHummingbirds:
                 case IndexOfFieldInSource.AttractsNativeBees:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.YesNoMaybe, trimmed, StringComparer.OrdinalIgnoreCase);
                     if (indexIntoArray > -1)
                     {
                         errors = outie;
@@ -2576,7 +2580,7 @@ namespace CSVtoPlant
                 case IndexOfFieldInSource.San_Mateo:
                 case IndexOfFieldInSource.Solano:
                 case IndexOfFieldInSource.Sonoma:
-                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.SunType, trimmed, StringComparer.OrdinalIgnoreCase);
+                    indexIntoArray = Array.BinarySearch<string>(ValueOfFieldInSource.YesNoMaybe, trimmed, StringComparer.OrdinalIgnoreCase);
                     if (indexIntoArray > -1)
                     {
                         errors = outie;

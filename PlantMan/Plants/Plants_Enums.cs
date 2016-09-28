@@ -26,12 +26,6 @@ namespace PlantMan.Plants
         Regular = 8, Moderate = 16, Occasional = 32, Infrequent = 64, Drought_tolerant
     }
 
-    public enum CNPS_Drainage
-    {
-        Unassigned = 1, Unknown = 2, NotApplicable = 4,
-        Fast = 8, Medium = 16, Slow = 64, Standing = 128
-    }
-
     public enum YesNoMaybe { Unassigned = 1, Unknown = 2, NotApplicable = 4, Yes = 8, No = 16 };
 
     // [Flags] attribute tells the compiler to treat this enum as a bitfield (for OR'ing, etc)
@@ -42,11 +36,6 @@ namespace PlantMan.Plants
         Jan = 8, Feb = 16, Mar = 32, Apr = 64, May = 128, Jun = 256,
         Jul = 512, Aug = 1024, Sep = 2048, Oct = 4096, Nov = 8192, Dec = 16384,
         AllMonths = (Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct | Nov | Dec)
-
-        //Unassigned =   Math.Pow(2,0), Unknown = 2 ^ 1, NotApplicable = 2 ^ 2,
-        //Jan = 2 ^ 3, Feb = 2 ^ 4, Mar = 2 ^ 5, Apr = 2 ^ 6, May = 2 ^ 7, Jun = 2 ^ 8,
-        //Jul = 2 ^ 9, Aug = 2 ^ 10, Sep = 2 ^ 11, Oct = 2 ^ 12, Nov = 2 ^ 13, Dec = 2 ^ 14,
-        //AllMonths = (Jan | Feb | Mar | Apr | May | Jun | Jul | Aug | Sep | Oct | Nov | Dec)
     }
 
     [Flags]
@@ -56,6 +45,16 @@ namespace PlantMan.Plants
         Full = 8, Partial = 16, Shade = 32,
         AllSunTypes = (Full | Partial | Shade)
     }
+
+    [Flags]
+    public enum CNPS_DrainageType
+    {
+        Unassigned = 1, Unknown = 2, NotApplicable = 4,
+        Fast = 8, Medium = 16, Slow = 32, Standing = 64,
+        AllDrainageType = (Fast | Medium | Slow | Standing)
+    }
+
+
 
     public static class Helpers
     {
@@ -89,24 +88,6 @@ namespace PlantMan.Plants
                 case WateringType.Occasional:
                 case WateringType.Infrequent:
                 case WateringType.Drought_tolerant:
-                    break;
-                default:
-                    System.Diagnostics.Debug.WriteLine("IsValidWateringType(): Not a valid enum value: " + value.ToString());
-                    return false;
-            }
-            return true;
-        }
-
-        public static bool IsValidCNPS_DrainageType(CNPS_Drainage value)
-        {
-            switch (value)
-            {
-                case CNPS_Drainage.Unassigned:
-                case CNPS_Drainage.Unknown:
-                case CNPS_Drainage.Fast:
-                case CNPS_Drainage.Medium:
-                case CNPS_Drainage.Slow:
-                case CNPS_Drainage.Standing:
                     break;
                 default:
                     System.Diagnostics.Debug.WriteLine("IsValidWateringType(): Not a valid enum value: " + value.ToString());
@@ -198,6 +179,39 @@ namespace PlantMan.Plants
 
             return true;
         }
+
+        public static bool IsValidCNPS_DrainageValue(int value)
+        {
+            CNPS_DrainageType incoming = (CNPS_DrainageType)value;
+
+            CNPS_DrainageType AllVals = (CNPS_DrainageType.Unassigned | CNPS_DrainageType.Unknown |
+                CNPS_DrainageType.NotApplicable | CNPS_DrainageType.Fast |
+                CNPS_DrainageType.Medium | CNPS_DrainageType.Slow | CNPS_DrainageType.Standing );
+
+            // determine if any of the FW enums contained in incoming are
+            // also contained within the entire set.
+            bool HasMembersOfAll = AllVals.HasFlag(incoming);
+            if (!HasMembersOfAll) return false;
+
+            // determine if any of the FW enums contained in incoming are
+            // also contained within the CNPS_DrainageTypes-only-set.
+            bool HasMembersOfCNPS_DrainageTypes = CNPS_DrainageType.AllDrainageType.HasFlag(incoming);
+
+            // determine if any of the FW enums contained in incoming are
+            // also contained within the there-can-be-only-one set.
+            CNPS_DrainageType TCBOO = (CNPS_DrainageType.Unassigned | CNPS_DrainageType.Unknown | CNPS_DrainageType.NotApplicable);
+            bool IsOneOfExcl = TCBOO.HasFlag((CNPS_DrainageType)value);
+
+            if (HasMembersOfCNPS_DrainageTypes && IsOneOfExcl) return false;  // bad combo
+
+            // determine if incoming contains more than one of the values
+            // from the TCBOO set.
+            if (incoming.HasFlag(CNPS_DrainageType.Unassigned) && incoming.HasFlag(CNPS_DrainageType.Unknown)) return false;
+            if (incoming.HasFlag(CNPS_DrainageType.Unassigned) && incoming.HasFlag(CNPS_DrainageType.NotApplicable)) return false;
+            if (incoming.HasFlag(CNPS_DrainageType.Unknown) && incoming.HasFlag(CNPS_DrainageType.NotApplicable)) return false;
+
+            return true;
+        }
     }
 
     /// <summary>
@@ -210,14 +224,20 @@ namespace PlantMan.Plants
         public const string UnivNotApplicable = "NA";
 
         // HACK: do not change the order, we have code which assumes the index of UnivUnassigned
-        public static string[] PlantType = { UnivUnassigned, UnivNotApplicable, UnivUnknown, "Annual herb", "Bush", "Fern", "Grass", "Perennial herb", "Tree", "Vine" };
-        public static string[] WateringType = { UnivUnassigned, UnivNotApplicable, UnivUnknown, "Regular", "Moderate", "Occasional", "Infrequent", "Drought_tolerant" }; 
-        public static string[] CNPS_Drainage = { UnivUnassigned, UnivNotApplicable, UnivUnknown, "Fast", "Medium", "Occasional", "Slow", "Standing" };
+        public static string[] PlantType = { UnivUnassigned, UnivNotApplicable, UnivUnknown,
+            "Annual herb", "Bush", "Fern", "Grass", "Perennial herb", "Tree", "Vine" };
+        public static string[] WateringType = { UnivUnassigned, UnivNotApplicable, UnivUnknown,
+            "Regular", "Moderate", "Occasional", "Infrequent", "Drought tolerant" }; 
+        public static string[] CNPS_Drainage = { UnivUnassigned, UnivNotApplicable, UnivUnknown,
+            "Fast", "Medium", "Occasional", "Slow", "Standing" };
         // these enums are used in multiple selection properties
-        public static string[] Month = { UnivUnassigned, UnivNotApplicable, UnivUnknown, "Jan", "Feb", "Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec" };
-        public static string[] SunType = { UnivUnassigned, UnivNotApplicable, UnivUnknown, "Full", "Partial", "Shade" };
+        public static string[] Month = { UnivUnassigned, UnivNotApplicable, UnivUnknown,
+            "Jan", "Feb", "Mar", "Apr", "May", "June", "July", "Aug", "Sep", "Oct", "Nov", "Dec" };
+        public static string[] SunType = { UnivUnassigned, UnivNotApplicable, UnivUnknown,
+            "Full", "Partial", "Shade" };
         // this enum is shared by many properties
-        public static string[] YesNoMaybe = { UnivUnassigned, UnivNotApplicable, UnivUnknown, "Yes", "No" };
+        public static string[] YesNoMaybe = { UnivUnassigned, UnivNotApplicable, UnivUnknown,
+            "Yes", "No" };
     }
 
     /// <summary>

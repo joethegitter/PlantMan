@@ -12,6 +12,7 @@ using Windows.UI.Xaml.Data;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
+using System.Reflection;
 
 using PlantMan.Plants;
 using CSVtoPlant;
@@ -40,16 +41,29 @@ namespace UWP_ParseTests
 
         private void button_Click(object sender, RoutedEventArgs e)
         {
-
+            ParseResourceIntoTextBox();
         }
 
         private void ParseResourceIntoTextBox()
         {
-            // Create a Dict of Plants
-            Dictionary<string, Plant> PlantDict = new Dictionary<string, Plant>();
-            
-           
+            Assembly myAss = this.GetType().GetTypeInfo().Assembly;
+            string myPath = "UWP_ParseTests.Assets.PlantsFixed.csv";
+            PlantImporter pi = new PlantImporter(myAss, myPath);
+            pi.DebugOutput = PlantImporter.TDO.None;
+            List<Plant> myPlants = pi.GetPlantList();
+            string all = "";
+            //foreach (string s in pi.ParseErrorList)
+            //{
+            //    all += s + Environment.NewLine;
+            //}
 
+            textBlock.Text = "";
+            foreach (Plant p in myPlants)
+            {
+                
+                all += p.Name + Environment.NewLine + p.CNPS_Drainage.ToString() + Environment.NewLine;
+            }
+            textBlock.Text = all;
         }
     }
 }
