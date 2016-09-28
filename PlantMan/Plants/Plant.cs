@@ -511,6 +511,7 @@ namespace PlantMan.Plants
             private decimal _value;
             private bool _isUnassigned;
             private bool _isUnknown;
+            private bool _isNotApplicable;
             private bool _hasNumericValue;
 
             // HasValue will be false, Unassigned true, Unknown false
@@ -553,9 +554,15 @@ namespace PlantMan.Plants
                 {
                     _hasNumericValue = false;
                     _isUnknown = false;
+                    _isNotApplicable = false;
                     _isUnassigned = true;
                     _value = value;
                 }
+            }
+
+            public void SetValue(decimal value)
+            {
+                this.Value = value; 
             }
 
             public void SetUnassigned()
@@ -564,6 +571,7 @@ namespace PlantMan.Plants
                 _hasNumericValue = false;
                 _isUnknown = false;
                 _isUnassigned = true;
+                _isNotApplicable = false;
             }
 
             public void SetUnknown()
@@ -574,10 +582,35 @@ namespace PlantMan.Plants
                 _isUnassigned = true;
             }
 
+            public void SetNotApplicable()
+            {
+                _value = decimal.Zero;
+                _hasNumericValue = false;
+                _isUnknown = false;
+                _isUnassigned = false;
+                _isNotApplicable = true;
+            }
+
             public bool HasNumericValue
             {
                 get { return _hasNumericValue; }
             }
+
+            public bool IsUnassigned
+            {
+                get { return _isUnassigned; }
+            }
+
+            public bool IsUnknown
+            {
+                get { return _isUnknown; }
+            }
+
+            public bool IsNotApplicable
+            {
+                get { return _isNotApplicable; }
+            }
+
         } // class DecimalAndBeyond
 
     } // class Plant

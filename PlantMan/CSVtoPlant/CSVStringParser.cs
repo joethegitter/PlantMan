@@ -2477,13 +2477,13 @@ namespace CSVtoPlant
             else if (string.IsNullOrWhiteSpace(list[index]))
             {
                 outie += start + "value in list == whitespace; ";
-                Debug.WriteLine(false, start + "value in list == whitespace");
+                Debug.WriteLine(start + "value in list == whitespace");
                 trimmed = "";
             }
             else if (string.IsNullOrEmpty(list[index]))
             {
                 outie += start + "value in list == null but IsNullOrEmpty() fails; ";
-                Debug.WriteLine(false, start + "value in list == not null but IsNullOrEmpty() fails.");
+                Debug.WriteLine(start + "value in list == not null but IsNullOrEmpty() fails.");
                 trimmed = "";
             }
             else
