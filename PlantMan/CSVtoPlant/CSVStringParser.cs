@@ -40,6 +40,11 @@ namespace CSVtoPlant
         private bool _theCSVDataWasSetDirectly = false;
         private bool _theCSVDataHasHeaderLine = true;
 
+        public static Assembly GetMyAssembly(object app)
+        {
+            return app.GetType().GetTypeInfo().Assembly;
+        }
+
         #region Constructors
         /// <summary>
         /// Creates a new object and sets the specified properties.
@@ -201,6 +206,9 @@ namespace CSVtoPlant
             get { return _resourceAssembly; }
             set
             {
+                // if value is null, reject
+                if (value == null) throw new ArgumentNullException("ResourceAssembly");
+
                 // clear the pathToResource
                 _pathToResource = null;
 
